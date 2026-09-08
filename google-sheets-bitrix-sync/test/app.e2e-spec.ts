@@ -1,3 +1,6 @@
+process.env.BITRIX_WEBHOOK_URL = process.env.BITRIX_WEBHOOK_URL || 'https://test.bitrix24.vn/rest/1/test/';
+process.env.GOOGLE_SHEET_ID = process.env.GOOGLE_SHEET_ID || 'test_sheet_id';
+
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
@@ -7,6 +10,9 @@ describe('Application Endpoints (e2e)', () => {
   let app: INestApplication;
 
   beforeAll(async () => {
+    process.env.BITRIX_WEBHOOK_URL = process.env.BITRIX_WEBHOOK_URL || 'https://test.bitrix24.vn/rest/1/test/';
+    process.env.GOOGLE_SHEET_ID = process.env.GOOGLE_SHEET_ID || 'test_sheet_id';
+
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();

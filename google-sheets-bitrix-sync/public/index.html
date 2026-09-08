@@ -3,205 +3,176 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Quản Trị Đồng Bộ Dữ Liệu Khách Hàng | Google Sheets ↔ Bitrix24 CRM</title>
+  <title>Google Sheets ↔ Bitrix24 CRM Sync</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
   <div class="container">
     <header>
       <div class="brand">
-        <div class="brand-icon">⚡</div>
+        <div class="brand-icon">⇄</div>
         <div class="brand-title">
           <h1>Quản Trị Đồng Bộ Google Sheets ↔ Bitrix24 CRM</h1>
-          <p>Tự Động Hóa Dữ Liệu Khách Hàng Tiềm Năng (Leads) - Dành Cho Team Kinh Doanh & Marketing</p>
+          <p>Tự động hóa đồng bộ dữ liệu khách hàng tiềm năng</p>
         </div>
       </div>
-      <div class="badges">
-        <div class="badge badge-primary" id="badgeSheet">🌐 Google Sheets Đã Kết Nối</div>
-        <div class="badge badge-success" id="badgeCron">⏱ Lịch Tự Động Định Kỳ</div>
-        <div class="badge badge-warning" id="badgeDirection">🔄 Đồng Bộ 2 Chiều Thông Minh</div>
+      <div class="status-badge">
+        <span class="status-dot"></span>
+        <span>Hệ thống sẵn sàng</span>
       </div>
     </header>
 
     <div id="statusAlert" class="status-alert"></div>
 
-    <!-- Hướng dẫn nhanh cho người dùng mới -->
-    <div class="quick-tip">
-      <div class="quick-tip-icon">💡</div>
-      <div>
-        <strong>Cách sử dụng:</strong> Hệ thống tự động đọc danh sách khách hàng từ Google Sheets và đồng bộ sang CRM Bitrix24. Khi cần ghép thêm cột mới, bấm nút <strong>"+ Thêm Quy Tắc Ánh Xạ"</strong>, gõ đúng tên cột trên Google Sheets và chọn trường lưu trữ tương ứng trong danh sách CRM Bitrix24.
-      </div>
-    </div>
-
-    <!-- 5 Thẻ thống kê trực quan cho Non-Tech User -->
+    <!-- Thống kê trạng thái -->
     <div class="stats-grid">
-      <div class="stat-card card-primary">
-        <div class="stat-label">Khách Hàng Trên Sheet</div>
+      <div class="stat-card">
+        <div class="stat-label">Khách hàng trên Sheet</div>
         <div class="stat-value" id="statTotalRows">-</div>
-        <div class="stat-meta">Tổng dòng dữ liệu hợp lệ</div>
+        <div class="stat-meta">Tổng dòng dữ liệu</div>
       </div>
-      <div class="stat-card card-success">
-        <div class="stat-label">Đã Tạo Mới Trên CRM</div>
+      <div class="stat-card">
+        <div class="stat-label">Đã tạo mới trên CRM</div>
         <div class="stat-value" id="statCreated" style="color: var(--success);">-</div>
-        <div class="stat-meta">Khách hàng mới hoàn toàn</div>
+        <div class="stat-meta">Lead mới</div>
       </div>
-      <div class="stat-card card-accent">
-        <div class="stat-label">Đã Cập Nhật (Có Thay Đổi)</div>
+      <div class="stat-card">
+        <div class="stat-label">Đã cập nhật</div>
         <div class="stat-value" id="statUpdated" style="color: var(--primary);">-</div>
-        <div class="stat-meta">Thông tin cũ được làm mới</div>
+        <div class="stat-meta">Lead có thay đổi</div>
       </div>
-      <div class="stat-card card-muted">
-        <div class="stat-label">Giữ Nguyên (Không Đổi)</div>
+      <div class="stat-card">
+        <div class="stat-label">Giữ nguyên</div>
         <div class="stat-value" id="statSkipped" style="color: var(--text-muted);">-</div>
-        <div class="stat-meta">Dữ liệu đã khớp sẵn</div>
+        <div class="stat-meta">Không thay đổi</div>
       </div>
-      <div class="stat-card card-danger">
-        <div class="stat-label">Bản Ghi Gặp Lỗi</div>
+      <div class="stat-card">
+        <div class="stat-label">Bản ghi lỗi</div>
         <div class="stat-value" id="statFailed" style="color: var(--danger);">-</div>
-        <div class="stat-meta">Thiếu thông tin / sai mẫu</div>
+        <div class="stat-meta">Cần kiểm tra</div>
       </div>
     </div>
 
-    <!-- Thanh thông tin thời gian thực thi -->
+    <!-- Meta bar -->
     <div class="meta-bar">
-      <div id="metaLastRun">⏱ Lần chạy gần nhất: Chưa có dữ liệu</div>
-      <div id="metaDuration">⏳ Thời lượng xử lý: -</div>
+      <div id="metaLastRun">Lần chạy gần nhất: Chưa có dữ liệu</div>
+      <div id="metaDuration">Thời lượng: -</div>
     </div>
 
-    <!-- Bảng điều khiển hành động -->
+    <!-- Thanh công cụ hành động -->
     <div class="action-panel">
       <div class="btn-group">
-        <button id="btnTriggerSync" class="btn btn-primary" onclick="triggerSync()" title="Đọc danh sách khách hàng từ Google Sheets và gửi sang Bitrix24 CRM">
-          ▶ Đẩy Dữ Liệu Sang Bitrix24 CRM
+        <button id="btnTriggerSync" class="btn btn-primary" onclick="triggerSync()">
+          ▶ Đồng bộ sang CRM
         </button>
-        <button id="btnTriggerTwoWay" class="btn btn-secondary" onclick="triggerTwoWay()" title="Lấy thông tin cập nhật mới nhất từ CRM Bitrix24 điền ngược lại Google Sheets">
-          🔄 Kéo Dữ Liệu Về Google Sheets
+        <button id="btnTriggerTwoWay" class="btn btn-secondary" onclick="triggerTwoWay()">
+          🔄 Kéo dữ liệu về Sheet
         </button>
-        <label class="checkbox-label" title="Tích vào nếu muốn ép buộc cập nhật lại toàn bộ dòng dữ liệu kể cả các dòng chưa có thay đổi">
-          <input type="checkbox" id="forceSync"> Bắt buộc đồng bộ toàn bộ (kể cả dòng chưa thay đổi)
+        <label class="checkbox-label">
+          <input type="checkbox" id="forceSync"> Đồng bộ lại toàn bộ dòng
         </label>
       </div>
       <button class="btn btn-secondary" onclick="fetchStatus()">
-        ↻ Làm mới trạng thái
+        ↻ Làm mới
       </button>
     </div>
 
-    <!-- Khu vực Quản lý Ánh Xạ Cột (Mapping) -->
+    <!-- Cấu hình Mapping -->
     <div class="card">
       <div class="card-title">
-        <div>
-          <span>Cấu Hình Quy Tắc Ánh Xạ Cột (Mapping Rules)</span>
-          <span style="font-size: 13px; font-weight: 400; color: var(--text-muted); margin-left: 8px;">(Liên kết cột Google Sheets với trường dữ liệu CRM Bitrix24)</span>
-        </div>
+        <h3>Quy tắc ánh xạ cột (Field Mapping)</h3>
         <div style="display: flex; gap: 8px;">
-          <button class="btn btn-primary" style="padding: 7px 16px; font-size: 12.5px;" onclick="toggleMappingForm()">
-            + Thêm Quy Tắc Mới
+          <button class="btn btn-primary" onclick="toggleMappingForm()">
+            + Thêm quy tắc
           </button>
-          <button class="btn btn-secondary" style="padding: 7px 16px; font-size: 12.5px;" onclick="loadMappingTable()">
-            ↻ Tải Lại Bảng
+          <button class="btn btn-secondary" onclick="loadMappingTable()">
+            ↻ Tải lại
           </button>
         </div>
       </div>
 
-      <!-- Form Thêm Quy Tắc Mapping Mới (Thiết kế trực quan cho Non-Tech) -->
+      <!-- Form thêm quy tắc mới -->
       <div id="mappingFormContainer" class="form-box" style="display: none;">
-        <h4 style="margin-bottom: 14px; font-size: 15px; color: var(--primary); display: flex; align-items: center; gap: 8px;">
-          <span>➕</span> Thêm Quy Tắc Ghép Cột Mới Vào Hệ Thống
-        </h4>
         <div class="form-grid">
-          <!-- 1. Cột Google Sheet: Cho user tự do điền -->
           <div class="form-group">
-            <label class="form-label">1. Tên Cột Trên Google Sheets *</label>
-            <input type="text" id="mapSheetCol" class="form-control" placeholder="Ví dụ: Họ và tên, Ngân sách, Địa chỉ...">
-            <span class="form-hint">Nhập đúng tiêu đề cột ở dòng 1 trên Google Sheet của bạn.</span>
+            <label class="form-label">Cột Google Sheets *</label>
+            <input type="text" id="mapSheetCol" class="form-control" placeholder="Tên cột ở dòng 1 (ví dụ: Họ và tên, SĐT)">
           </div>
 
-          <!-- 2. Trường Bitrix24: CHỈ ĐƯỢC CHỌN TỪ DROPDOWN HỢP LỆ -->
           <div class="form-group">
-            <label class="form-label">2. Trường Trên CRM Bitrix24 *</label>
+            <label class="form-label">Trường Bitrix24 CRM *</label>
             <select id="mapBitrixField" class="form-control" onchange="onBitrixFieldChange()">
-              <option value="">-- Đang tải danh sách trường Bitrix24... --</option>
+              <option value="">-- Đang tải danh sách trường... --</option>
             </select>
-            <span class="form-hint">Chỉ được chọn từ danh mục trường thực tế tồn tại trên Bitrix Lead.</span>
           </div>
 
-          <!-- 2b. Ô nhập phụ nếu chọn trường tùy biến khác -->
           <div class="form-group" id="customFieldGroup" style="display: none;">
-            <label class="form-label">Mã Trường Tùy Biến (UF_CRM_*) *</label>
-            <input type="text" id="mapCustomFieldName" class="form-control" placeholder="Ví dụ: UF_CRM_TAX_ID">
-            <span class="form-hint">Nhập đúng mã trường tùy biến bắt đầu bằng UF_CRM_</span>
+            <label class="form-label">Mã trường tùy biến (UF_CRM_*) *</label>
+            <input type="text" id="mapCustomFieldName" class="form-control" placeholder="UF_CRM_...">
           </div>
 
-          <!-- 3. Kiểu dữ liệu: TỰ ĐỘNG SUY LUẬN -->
           <div class="form-group">
-            <label class="form-label">3. Loại Dữ Liệu (Tự Động Nhận Diện)</label>
+            <label class="form-label">Kiểu dữ liệu</label>
             <select id="mapType" class="form-control">
-              <option value="string">Văn bản thông thường (Chuỗi chữ)</option>
-              <option value="multifield">Kênh liên hệ (Số điện thoại / Email / Web)</option>
-              <option value="number">Số tiền / Số lượng (Chỉ gồm số)</option>
-              <option value="enum">Danh mục lựa chọn (Trạng thái / Nguồn)</option>
-              <option value="date">Ngày tháng (YYYY-MM-DD hoặc DD/MM/YYYY)</option>
+              <option value="string">Văn bản (string)</option>
+              <option value="multifield">Kênh liên hệ (SĐT / Email)</option>
+              <option value="number">Số tiền / Số lượng</option>
+              <option value="enum">Danh mục lựa chọn (Enum)</option>
+              <option value="date">Ngày tháng (Date)</option>
             </select>
-            <div id="typeDescription" class="type-indicator">
-              <span>ℹ️</span> Tự động điều chỉnh theo trường CRM bạn đã chọn
-            </div>
           </div>
 
-          <!-- 4. Giá trị mặc định -->
           <div class="form-group">
-            <label class="form-label">4. Giá Trị Mặc Định (Nếu Sheet Để Trống)</label>
-            <input type="text" id="mapDefault" class="form-control" placeholder="Để trống nếu không cần mặc định">
-            <span class="form-hint">Điền giá trị thay thế nếu ô trên sheet bị bỏ trống.</span>
+            <label class="form-label">Giá trị mặc định (tùy chọn)</label>
+            <input type="text" id="mapDefault" class="form-control" placeholder="Áp dụng khi ô trống">
           </div>
         </div>
 
-        <!-- Checkbox Bắt Buộc -->
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border-color); flex-wrap: wrap; gap: 12px;">
-          <label class="checkbox-label" style="font-size: 13px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border-subtle); flex-wrap: wrap; gap: 10px;">
+          <label class="checkbox-label">
             <input type="checkbox" id="mapRequired">
-            <span><strong>Bắt buộc có dữ liệu:</strong> Đánh dấu lỗi nếu dòng trên Sheet bị thiếu thông tin này</span>
+            <span>Bắt buộc có dữ liệu</span>
           </label>
           <div style="display: flex; gap: 8px;">
-            <button class="btn btn-secondary" style="padding: 7px 16px; font-size: 12.5px;" onclick="toggleMappingForm(false)">Hủy Bỏ</button>
-            <button class="btn btn-primary" style="padding: 7px 18px; font-size: 12.5px;" onclick="saveNewMappingRule()">✓ Lưu Quy Tắc Này</button>
+            <button class="btn btn-secondary" onclick="toggleMappingForm(false)">Hủy</button>
+            <button class="btn btn-primary" onclick="saveNewMappingRule()">Lưu quy tắc</button>
           </div>
         </div>
       </div>
 
-      <!-- Bảng Danh Sách Ánh Xạ Hiện Tại -->
+      <!-- Bảng danh sách ánh xạ -->
       <div class="table-responsive">
         <table>
           <thead>
             <tr>
-              <th style="width: 25%;">Cột Trên Google Sheets</th>
+              <th style="width: 25%;">Cột Google Sheets</th>
               <th style="width: 5%; text-align: center;"></th>
-              <th style="width: 30%;">Trường Lưu Trên Bitrix24 CRM</th>
-              <th style="width: 15%;">Loại Dữ Liệu</th>
-              <th style="width: 12%;">Giá Trị Mặc Định</th>
-              <th style="width: 8%; text-align: center;">Bắt Buộc</th>
-              <th style="width: 5%; text-align: right;">Xóa</th>
+              <th style="width: 30%;">Trường Bitrix24 CRM</th>
+              <th style="width: 15%;">Kiểu dữ liệu</th>
+              <th style="width: 13%;">Mặc định</th>
+              <th style="width: 7%; text-align: center;">Bắt buộc</th>
+              <th style="width: 5%; text-align: right;"></th>
             </tr>
           </thead>
           <tbody id="mappingTableBody">
             <tr>
-              <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 24px;">Đang tải danh sách ánh xạ cột...</td>
+              <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 20px;">Đang tải danh sách ánh xạ...</td>
             </tr>
           </tbody>
         </table>
       </div>
     </div>
 
-    <!-- Khu vực Lịch Sử Đồng Bộ Gần Đây -->
+    <!-- Lịch sử đồng bộ -->
     <div class="card">
       <div class="card-title">
-        <span>Lịch Sử Các Lần Đồng Bộ Gần Nhất</span>
-        <span style="font-size: 12px; color: var(--text-muted); font-weight: 400;">(Tự động ghi nhận mỗi khi có lượt đồng bộ hoàn tất)</span>
+        <h3>Lịch sử đồng bộ gần nhất</h3>
       </div>
       <div id="logsContainer">
-        <div style="color: var(--text-muted); font-size: 13px; padding: 12px 0;">Chưa có lượt đồng bộ nào trong phiên hoạt động hiện tại. Bấm nút "Đẩy Dữ Liệu Sang Bitrix24 CRM" để bắt đầu.</div>
+        <div style="color: var(--text-muted); font-size: 13px; padding: 8px 0;">Chưa có lượt đồng bộ nào gần đây.</div>
       </div>
     </div>
   </div>

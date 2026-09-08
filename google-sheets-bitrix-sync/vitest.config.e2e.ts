@@ -7,5 +7,9 @@ export default defineConfig({
     globals: true,
     root: './',
     include: ['**/*.e2e-spec.ts'],
+    env: {
+      BITRIX_WEBHOOK_URL: 'https://test.bitrix24.vn/rest/1/test/',
+      GOOGLE_SHEET_ID: 'test_sheet_id',
+    },
   },
 });

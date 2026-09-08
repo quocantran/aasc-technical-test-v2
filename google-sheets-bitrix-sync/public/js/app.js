@@ -1,13 +1,13 @@
 /**
- * Google Sheets <-> Bitrix24 Management Dashboard Frontend Controller
- * Thiết kế chuẩn UI/UX cho người dùng Non-Tech (Kinh doanh & Marketing)
+ * Google Sheets <-> Bitrix24 Management Dashboard Controller
+ * Clean, efficient, and deduplicated field mapping management
  */
 
 let availableBitrixFields = [];
 let bitrixFieldsMap = new Map();
 let currentMappingConfig = { fields: [] };
 
-// Tải danh mục trường Bitrix Lead từ máy chủ và khởi tạo dropdown phân nhóm
+// Tải danh mục trường Bitrix Lead từ máy chủ
 async function loadBitrixFields() {
   const select = document.getElementById('mapBitrixField');
   if (!select) return;
@@ -20,43 +20,79 @@ async function loadBitrixFields() {
       availableBitrixFields = json.data;
       bitrixFieldsMap.clear();
 
-      // Gom nhóm theo trường group
-      const grouped = {};
       for (const field of availableBitrixFields) {
         bitrixFieldsMap.set(field.field, field);
-        const gName = field.group || 'Thông tin chung';
-        if (!grouped[gName]) grouped[gName] = [];
-        grouped[gName].push(field);
       }
 
-      select.innerHTML = '<option value="">-- Chọn trường lưu trữ trên Bitrix24 CRM --</option>';
-
-      for (const [groupName, fields] of Object.entries(grouped)) {
-        const optgroup = document.createElement('optgroup');
-        optgroup.label = groupName;
-
-        for (const f of fields) {
-          const opt = document.createElement('option');
-          opt.value = f.field;
-          const reqStar = f.isRequired ? ' (* Bắt buộc)' : '';
-          opt.textContent = `${f.label} [${f.field}]${reqStar}`;
-          optgroup.appendChild(opt);
-        }
-        select.appendChild(optgroup);
-      }
-
-      // Thêm tùy chọn tự gõ mã trường tùy biến khác nếu cần
-      const customGroup = document.createElement('optgroup');
-      customGroup.label = '➕ Tùy chọn nâng cao';
-      const customOpt = document.createElement('option');
-      customOpt.value = '__CUSTOM__';
-      customOpt.textContent = '➕ Nhập mã trường tùy biến khác (UF_CRM_...)';
-      customGroup.appendChild(customOpt);
-      select.appendChild(customGroup);
+      renderBitrixFieldSelect();
     }
   } catch (err) {
     console.error('Không thể tải danh sách trường Bitrix24:', err);
     select.innerHTML = '<option value="">(Lỗi tải danh mục trường, vui lòng làm mới)</option>';
+  }
+}
+
+// Render dropdown chọn trường Bitrix: LOẠI BỎ "Trường Bitrix24 khác" và CHỈ HIỂN THỊ CÁC TRƯỜNG CHƯA ĐƯỢC MAPPING
+function renderBitrixFieldSelect() {
+  const select = document.getElementById('mapBitrixField');
+  if (!select) return;
+
+  // Tập hợp các trường Bitrix đã được ánh xạ hiện tại
+  const mappedBitrixFields = new Set(
+    (currentMappingConfig.fields || []).map((f) => f.bitrixField),
+  );
+
+  // Lọc: Bỏ trường đã có trong mapping VÀ Bỏ nhóm "Trường Bitrix24 khác"
+  const unmappedFields = availableBitrixFields.filter((f) => {
+    // Không cho phép chọn trường đã có trong mapping
+    if (mappedBitrixFields.has(f.field)) return false;
+
+    // Loại bỏ triệt để nhóm "Trường Bitrix24 khác"
+    const group = (f.group || '').trim().toLowerCase();
+    if (group.includes('khác') || group.includes('other')) return false;
+
+    return true;
+  });
+
+  select.innerHTML = '<option value="">-- Chọn trường Bitrix24 CRM --</option>';
+
+  // Gom nhóm theo danh mục
+  const grouped = {};
+  for (const f of unmappedFields) {
+    const gName = f.group || 'Thông tin chung';
+    if (!grouped[gName]) grouped[gName] = [];
+    grouped[gName].push(f);
+  }
+
+  for (const [groupName, fields] of Object.entries(grouped)) {
+    if (!fields || fields.length === 0) continue;
+    const optgroup = document.createElement('optgroup');
+    optgroup.label = groupName;
+
+    for (const f of fields) {
+      const opt = document.createElement('option');
+      opt.value = f.field;
+      const reqStar = f.isRequired ? ' *' : '';
+      opt.textContent = `${f.label || f.field} [${f.field}]${reqStar}`;
+      optgroup.appendChild(opt);
+    }
+    select.appendChild(optgroup);
+  }
+
+  // Tùy chọn cho trường tùy biến khác (UF_CRM_*)
+  const customGroup = document.createElement('optgroup');
+  customGroup.label = 'Trường tùy biến';
+  const customOpt = document.createElement('option');
+  customOpt.value = '__CUSTOM__';
+  customOpt.textContent = '+ Nhập mã trường tùy biến (UF_CRM_...)';
+  customGroup.appendChild(customOpt);
+  select.appendChild(customGroup);
+
+  if (unmappedFields.length === 0) {
+    const infoOpt = document.createElement('option');
+    infoOpt.disabled = true;
+    infoOpt.textContent = '(Tất cả trường CRM chuẩn đã được ánh xạ)';
+    select.appendChild(infoOpt);
   }
 }
 
@@ -65,7 +101,6 @@ function onBitrixFieldChange() {
   const select = document.getElementById('mapBitrixField');
   const customGroup = document.getElementById('customFieldGroup');
   const typeSelect = document.getElementById('mapType');
-  const descEl = document.getElementById('typeDescription');
   const reqCheckbox = document.getElementById('mapRequired');
   const defaultInput = document.getElementById('mapDefault');
 
@@ -74,41 +109,23 @@ function onBitrixFieldChange() {
   if (selectedValue === '__CUSTOM__') {
     customGroup.style.display = 'block';
     typeSelect.value = 'string';
-    descEl.innerHTML = '<span>ℹ️</span> Nhập mã trường bắt đầu bằng <code>UF_CRM_</code> đã tạo trên CRM.';
     return;
   }
 
   customGroup.style.display = 'none';
-
-  if (!selectedValue) {
-    descEl.innerHTML = '<span>ℹ️</span> Tự động điều chỉnh theo trường CRM bạn đã chọn';
-    return;
-  }
+  if (!selectedValue) return;
 
   const meta = bitrixFieldsMap.get(selectedValue);
   if (!meta) return;
 
-  // 1. Tự động gán kiểu dữ liệu phù hợp, người dùng không cần bối rối chọn
   if (meta.type) {
     typeSelect.value = meta.type;
   }
 
-  // 2. Gợi ý mô tả dễ hiểu
-  const descriptions = {
-    multifield: '<span>📞</span> Kênh liên lạc: Tự động chuẩn hóa số điện thoại quốc tế (+84) hoặc Email công việc.',
-    number: '<span>💰</span> Số tiền / Số lượng: Tự động lọc bỏ ký tự phẩy, chấm để lưu thành số hợp lệ.',
-    enum: '<span>📋</span> Danh mục chọn: Tự động chuyển đổi tiếng Việt (Mới, Đang xử lý...) thành mã chuẩn CRM.',
-    date: '<span>📅</span> Ngày tháng: Tự động nhận diện định dạng DD/MM/YYYY hoặc YYYY-MM-DD.',
-    string: '<span>📝</span> Văn bản thông thường: Lưu giữ nguyên nội dung chữ từ ô bảng tính.',
-  };
-  descEl.innerHTML = descriptions[meta.type] || descriptions.string;
-
-  // 3. Tự động tích nếu là trường bắt buộc (ví dụ TITLE)
   if (meta.isRequired) {
     reqCheckbox.checked = true;
   }
 
-  // 4. Gợi ý giá trị mặc định nếu có
   if (meta.defaultValue !== undefined && !defaultInput.value) {
     defaultInput.value = meta.defaultValue;
   }
@@ -135,10 +152,10 @@ async function fetchStatus() {
 
       if (timestamp) {
         const timeFormatted = new Date(timestamp).toLocaleString('vi-VN');
-        document.getElementById('metaLastRun').innerText = `⏱ Lần chạy gần nhất: ${timeFormatted}`;
+        document.getElementById('metaLastRun').innerText = `Lần chạy gần nhất: ${timeFormatted}`;
       }
       if (durationMs !== undefined) {
-        document.getElementById('metaDuration').innerText = `⏳ Thời lượng xử lý: ${durationMs}ms`;
+        document.getElementById('metaDuration').innerText = `Thời lượng: ${durationMs}ms`;
       }
     }
 
@@ -154,8 +171,8 @@ async function triggerSync() {
   const force = document.getElementById('forceSync').checked;
 
   btn.disabled = true;
-  btn.innerText = '⏳ Đang đẩy dữ liệu sang CRM...';
-  showAlert('info', 'Tiến trình đồng bộ đang đọc dữ liệu từ Google Sheets và xử lý trên CRM, vui lòng chờ giây lát...');
+  btn.innerText = '⏳ Đang đồng bộ...';
+  showAlert('info', 'Tiến trình đồng bộ đang chạy, vui lòng chờ...');
 
   try {
     const res = await fetch('/api/sync/trigger', {
@@ -163,7 +180,6 @@ async function triggerSync() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ force }),
     });
-
     const data = await res.json();
 
     if (data.status === 'success') {
@@ -174,33 +190,32 @@ async function triggerSync() {
       document.getElementById('statSkipped').innerText = skipped;
       document.getElementById('statFailed').innerText = failed;
 
-      document.getElementById('metaDuration').innerText = `⏳ Thời lượng xử lý: ${durationMs}ms`;
-      document.getElementById('metaLastRun').innerText = `⏱ Lần chạy gần nhất: ${new Date().toLocaleString('vi-VN')}`;
+      document.getElementById('metaDuration').innerText = `Thời lượng: ${durationMs}ms`;
+      document.getElementById('metaLastRun').innerText = `Lần chạy gần nhất: ${new Date().toLocaleString('vi-VN')}`;
 
-      let msg = `🎉 Đồng bộ sang CRM hoàn tất! Đã kiểm tra ${totalRows} dòng: Tạo mới ${created}, Cập nhật ${updated}, Giữ nguyên ${skipped}`;
-      if (failed > 0) {
-        msg += `, Gặp lỗi ${failed} bản ghi (vui lòng xem cột Báo Lỗi trên Sheet)`;
-      }
-      showAlert('success', msg);
+      showAlert(
+        'success',
+        `Hoàn tất: Tạo mới ${created}, Cập nhật ${updated}, Giữ nguyên ${skipped}, Lỗi ${failed}.`,
+      );
     } else {
-      showAlert('error', data.message || 'Hệ thống đang bận hoặc gặp lỗi khi đồng bộ');
+      showAlert('error', data.message || 'Tiến trình đồng bộ trả về cảnh báo');
     }
   } catch (error) {
-    showAlert('error', `Lỗi kết nối máy chủ: ${error.message}`);
+    showAlert('error', `Lỗi kết nối: ${error.message}`);
   } finally {
     btn.disabled = false;
-    btn.innerText = '▶ Đẩy Dữ Liệu Sang Bitrix24 CRM';
+    btn.innerText = '▶ Đồng bộ sang CRM';
     await fetchStatus();
   }
 }
 
-// Thực hiện kéo dữ liệu ngược từ Bitrix24 về Google Sheets
+// Thực hiện kéo dữ liệu từ Bitrix24 về Google Sheets
 async function triggerTwoWay() {
   const btn = document.getElementById('btnTriggerTwoWay');
 
   btn.disabled = true;
-  btn.innerText = '⏳ Đang kéo dữ liệu về Sheet...';
-  showAlert('info', 'Đang đọc danh sách khách hàng mới và cập nhật từ CRM Bitrix24 để điền về Google Sheets...');
+  btn.innerText = '⏳ Đang kéo dữ liệu...';
+  showAlert('info', 'Đang đọc dữ liệu từ Bitrix24 để cập nhật về Google Sheets...');
 
   try {
     const res = await fetch('/api/sync/two-way', { method: 'POST' });
@@ -214,21 +229,21 @@ async function triggerTwoWay() {
       document.getElementById('statSkipped').innerText = skipped;
       document.getElementById('statFailed').innerText = failed;
 
-      document.getElementById('metaDuration').innerText = `⏳ Thời lượng xử lý: ${durationMs}ms`;
-      document.getElementById('metaLastRun').innerText = `⏱ Lần chạy gần nhất: ${new Date().toLocaleString('vi-VN')}`;
+      document.getElementById('metaDuration').innerText = `Thời lượng: ${durationMs}ms`;
+      document.getElementById('metaLastRun').innerText = `Lần chạy gần nhất: ${new Date().toLocaleString('vi-VN')}`;
 
       showAlert(
         'success',
-        `🎉 Đồng bộ về Google Sheets hoàn tất: Đã bổ sung ${created} dòng mới, cập nhật ${updated} dòng (Tổng: ${totalRows} dòng).`,
+        `Hoàn tất kéo dữ liệu: Bổ sung ${created} dòng mới, Cập nhật ${updated} dòng.`,
       );
     } else {
       showAlert('error', data.message || 'Lỗi khi thực hiện kéo dữ liệu về Google Sheets');
     }
   } catch (error) {
-    showAlert('error', `Lỗi kết nối máy chủ: ${error.message}`);
+    showAlert('error', `Lỗi kết nối: ${error.message}`);
   } finally {
     btn.disabled = false;
-    btn.innerText = '🔄 Kéo Dữ Liệu Về Google Sheets';
+    btn.innerText = '🔄 Kéo dữ liệu về Sheet';
     await fetchStatus();
   }
 }
@@ -245,6 +260,7 @@ function toggleMappingForm(forceState) {
   }
 
   if (container.style.display === 'block') {
+    renderBitrixFieldSelect();
     document.getElementById('mapSheetCol')?.focus();
   }
 }
@@ -259,7 +275,7 @@ async function saveNewMappingRule() {
   const required = document.getElementById('mapRequired').checked;
 
   if (!sheetCol) {
-    showAlert('error', 'Vui lòng nhập tên cột trên Google Sheets của bạn!');
+    showAlert('error', 'Vui lòng nhập tên cột trên Google Sheets!');
     document.getElementById('mapSheetCol')?.focus();
     return;
   }
@@ -267,7 +283,7 @@ async function saveNewMappingRule() {
   let finalBitrixField = bitrixFieldSelect;
   if (bitrixFieldSelect === '__CUSTOM__') {
     if (!customFieldName) {
-      showAlert('error', 'Vui lòng nhập mã trường tùy biến (Ví dụ: UF_CRM_TAX_ID)!');
+      showAlert('error', 'Vui lòng nhập mã trường tùy biến (ví dụ: UF_CRM_TAX_ID)!');
       document.getElementById('mapCustomFieldName')?.focus();
       return;
     }
@@ -275,8 +291,17 @@ async function saveNewMappingRule() {
   }
 
   if (!finalBitrixField) {
-    showAlert('error', 'Vui lòng chọn trường lưu trữ trên CRM Bitrix24 trong danh sách!');
+    showAlert('error', 'Vui lòng chọn trường Bitrix24 CRM!');
     document.getElementById('mapBitrixField')?.focus();
+    return;
+  }
+
+  // Chống tạo quy tắc trùng lặp trường Bitrix24
+  const alreadyMapped = currentMappingConfig.fields.some(
+    (f) => f.bitrixField.toUpperCase() === finalBitrixField.toUpperCase(),
+  );
+  if (alreadyMapped) {
+    showAlert('error', `Trường CRM "${finalBitrixField}" đã được cấu hình trong bảng quy tắc!`);
     return;
   }
 
@@ -316,15 +341,7 @@ async function saveNewMappingRule() {
     if (!defVal) newField.defaultValue = 'OTHER';
   }
 
-  // Thay thế nếu trùng tên cột, hoặc thêm mới
-  const existingIdx = currentMappingConfig.fields.findIndex(
-    (f) => f.sheetColumn.toLowerCase() === sheetCol.toLowerCase(),
-  );
-  if (existingIdx >= 0) {
-    currentMappingConfig.fields[existingIdx] = newField;
-  } else {
-    currentMappingConfig.fields.push(newField);
-  }
+  currentMappingConfig.fields.push(newField);
 
   try {
     const res = await fetch('/api/mapping', {
@@ -334,7 +351,7 @@ async function saveNewMappingRule() {
     });
     const result = await res.json();
     if (result.status === 'success') {
-      showAlert('success', `Đã lưu thành công quy tắc ánh xạ cho cột "${sheetCol}"!`);
+      showAlert('success', `Đã thêm quy tắc ánh xạ cho cột "${sheetCol}"!`);
       toggleMappingForm(false);
       // Reset form
       document.getElementById('mapSheetCol').value = '';
@@ -343,20 +360,21 @@ async function saveNewMappingRule() {
       document.getElementById('customFieldGroup').style.display = 'none';
       document.getElementById('mapDefault').value = '';
       document.getElementById('mapRequired').checked = false;
-      document.getElementById('typeDescription').innerHTML = '<span>ℹ️</span> Tự động điều chỉnh theo trường CRM bạn đã chọn';
+
       await loadMappingTable();
     } else {
       showAlert('error', result.message || 'Lỗi khi lưu quy tắc ánh xạ');
     }
   } catch (err) {
-    showAlert('error', `Lỗi kết nối máy chủ: ${err.message}`);
+    showAlert('error', `Lỗi kết nối: ${err.message}`);
   }
 }
 
 // Xóa quy tắc ánh xạ theo chỉ số mảng
 async function deleteMappingRule(index) {
   const fieldName = currentMappingConfig.fields[index]?.sheetColumn;
-  if (!confirm(`Bạn có chắc chắn muốn xóa quy tắc liên kết cột "${fieldName}" khỏi hệ thống không?`)) {
+  const bitrixField = currentMappingConfig.fields[index]?.bitrixField;
+  if (!confirm(`Xóa quy tắc liên kết cột "${fieldName}" [${bitrixField}]?`)) {
     return;
   }
 
@@ -369,27 +387,27 @@ async function deleteMappingRule(index) {
     });
     const result = await res.json();
     if (result.status === 'success') {
-      showAlert('success', `Đã xóa quy tắc cho cột "${fieldName}"!`);
+      showAlert('success', `Đã xóa quy tắc cột "${fieldName}"!`);
       await loadMappingTable();
     } else {
       showAlert('error', result.message || 'Lỗi khi cập nhật cấu hình mapping');
     }
   } catch (err) {
-    showAlert('error', `Lỗi kết nối máy chủ: ${err.message}`);
+    showAlert('error', `Lỗi kết nối: ${err.message}`);
   }
 }
 
-// Nhãn tiếng Việt dễ hiểu cho các kiểu dữ liệu
+// Nhãn hiển thị kiểu dữ liệu
 function getFriendlyTypeBadge(type, valueType) {
   switch (type) {
     case 'multifield':
       return `<span class="pill pill-multifield">Liên hệ (${valueType || 'WORK'})</span>`;
     case 'number':
-      return `<span class="pill pill-number">Số tiền / Số</span>`;
+      return `<span class="pill pill-number">Số</span>`;
     case 'enum':
-      return `<span class="pill pill-enum">Danh mục chọn</span>`;
+      return `<span class="pill pill-enum">Danh mục</span>`;
     case 'date':
-      return `<span class="pill pill-date">Ngày tháng</span>`;
+      return `<span class="pill pill-date">Ngày</span>`;
     case 'string':
     default:
       return `<span class="pill pill-string">Văn bản</span>`;
@@ -409,46 +427,48 @@ async function loadMappingTable() {
     if (json.data && Array.isArray(json.data.fields) && json.data.fields.length > 0) {
       currentMappingConfig = json.data;
 
+      // Cập nhật lại dropdown trường Bitrix sau khi nạp mapping mới
+      renderBitrixFieldSelect();
+
       json.data.fields.forEach((field, index) => {
         const tr = document.createElement('tr');
 
-        // Tìm nhãn tiếng Việt của trường Bitrix nếu có
         const meta = bitrixFieldsMap.get(field.bitrixField);
         const fieldDisplayName = meta ? meta.label : field.bitrixField;
-
         const typeBadge = getFriendlyTypeBadge(field.type, field.valueType);
         const requiredBadge = field.required
-          ? '<span style="color: var(--danger); font-weight: 700; font-size: 12px; background: rgba(239, 68, 68, 0.1); padding: 2px 8px; border-radius: 4px;">Bắt buộc</span>'
+          ? '<span style="color: var(--danger); font-weight: 600; font-size: 12px;">Bắt buộc</span>'
           : '<span style="color: var(--text-dim); font-size: 12px;">Tùy chọn</span>';
 
         const defaultDisplay = field.defaultValue !== undefined && field.defaultValue !== ''
-          ? `<code>${field.defaultValue}</code>`
+          ? `<code class="code-field">${field.defaultValue}</code>`
           : '<span style="color: var(--text-dim);">-</span>';
 
         tr.innerHTML = `
-          <td><strong style="color: var(--text-main);">${field.sheetColumn}</strong></td>
-          <td style="text-align: center;"><span class="arrow-icon">➔</span></td>
+          <td><strong>${field.sheetColumn}</strong></td>
+          <td style="text-align: center; color: var(--text-dim);">➔</td>
           <td>
-            <div style="font-weight: 600; color: var(--text-main); font-size: 13.5px;">${fieldDisplayName}</div>
-            <span class="pill pill-field" style="margin-top: 3px;">${field.bitrixField}</span>
+            <div style="font-weight: 600; font-size: 13px;">${fieldDisplayName}</div>
+            <span class="code-field">${field.bitrixField}</span>
           </td>
           <td>${typeBadge}</td>
           <td>${defaultDisplay}</td>
           <td style="text-align: center;">${requiredBadge}</td>
           <td style="text-align: right;">
-            <button class="btn btn-secondary" style="padding: 4px 10px; font-size: 11.5px; color: var(--danger); border-color: rgba(239, 68, 68, 0.3);" onclick="deleteMappingRule(${index})" title="Xóa quy tắc này">
-              ✕ Xóa
+            <button class="btn btn-danger" style="padding: 4px 10px; font-size: 12px;" onclick="deleteMappingRule(${index})">
+              Xóa
             </button>
           </td>
         `;
         tbody.appendChild(tr);
       });
     } else {
-      tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 24px;">Chưa có quy tắc ánh xạ nào. Bấm "+ Thêm Quy Tắc Mới" ở trên để bắt đầu cấu hình.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 20px;">Chưa có quy tắc nào.</td></tr>';
+      renderBitrixFieldSelect();
     }
   } catch (error) {
     console.error('Lỗi khi tải bảng cấu hình mapping:', error);
-    tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--danger); padding: 24px;">Không thể tải cấu hình ánh xạ cột từ máy chủ.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--danger); padding: 20px;">Lỗi tải dữ liệu mapping.</td></tr>';
   }
 }
 
@@ -466,7 +486,7 @@ async function fetchLogs() {
         const div = document.createElement('div');
         div.className = 'log-item';
         const isTwoWay = log.direction === 'BITRIX_TO_SHEETS';
-        const directionLabel = isTwoWay ? '🔄 Kéo Dữ Liệu Về Sheet' : '▶ Đẩy Dữ Liệu Sang CRM';
+        const directionLabel = isTwoWay ? '🔄 Kéo về Sheet' : '▶ Đẩy sang CRM';
         const directionColor = isTwoWay ? 'var(--primary)' : 'var(--success)';
         const timeFormatted = new Date(log.timestamp).toLocaleTimeString('vi-VN') + ' - ' + new Date(log.timestamp).toLocaleDateString('vi-VN');
 
@@ -474,7 +494,7 @@ async function fetchLogs() {
           <div>
             <strong style="color: ${directionColor};">${directionLabel}</strong>
             <span class="log-meta">
-              Tạo mới: <b style="color: var(--success);">${log.created}</b> | Cập nhật: <b style="color: var(--primary);">${log.updated}</b> | Giữ nguyên: ${log.skipped} | Lỗi: <b style="color: ${log.failed > 0 ? 'var(--danger)' : 'var(--text-dim)'};">${log.failed}</b> (${log.durationMs}ms)
+              Tạo mới: <b style="color: var(--success);">${log.created}</b> | Cập nhật: <b style="color: var(--primary);">${log.updated}</b> | Bỏ qua: ${log.skipped} | Lỗi: <b style="color: ${log.failed > 0 ? 'var(--danger)' : 'var(--text-dim)'};">${log.failed}</b> (${log.durationMs}ms)
             </span>
           </div>
           <div class="log-time">${timeFormatted}</div>
@@ -487,18 +507,18 @@ async function fetchLogs() {
   }
 }
 
-// Hiển thị thông báo trạng thái dạng banner nổi
+// Hiển thị thông báo trạng thái
 function showAlert(type, message) {
   const el = document.getElementById('statusAlert');
   if (!el) return;
   el.className = `status-alert active alert-${type}`;
-  el.innerHTML = `<span>${message}</span><span style="cursor: pointer; opacity: 0.7; font-size: 18px;" onclick="this.parentElement.className='status-alert'">&times;</span>`;
+  el.innerHTML = `<span>${message}</span><span style="cursor: pointer; opacity: 0.7; font-size: 16px;" onclick="this.parentElement.className='status-alert'">&times;</span>`;
 
   setTimeout(() => {
     if (el.className.includes('active')) {
       el.className = 'status-alert';
     }
-  }, 7000);
+  }, 6000);
 }
 
 // Khởi chạy khi DOM sẵn sàng

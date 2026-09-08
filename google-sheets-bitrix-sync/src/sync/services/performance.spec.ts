@@ -4,6 +4,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { SyncOrchestratorService } from './sync-orchestrator.service.js';
 import { HashService } from './hash.service.js';
 import { LockService } from './lock.service.js';
+import { DeduplicationService } from './deduplication.service.js';
+import { ForwardSyncService } from './forward-sync.service.js';
+import { ReverseSyncService } from './reverse-sync.service.js';
+import { SyncHistoryService } from './sync-history.service.js';
 import { MappingService } from '../../mapping/services/mapping.service.js';
 import { SheetRow } from '../../google-sheets/interfaces/sheet-row.interface.js';
 
@@ -14,6 +18,10 @@ describe('Performance Test (150+ Records)', () => {
   let mappingService: MappingService;
   let hashService: HashService;
   let lockService: LockService;
+  let deduplicationService: DeduplicationService;
+  let forwardSyncService: ForwardSyncService;
+  let reverseSyncService: ReverseSyncService;
+  let syncHistoryService: SyncHistoryService;
   let mockLogger: any;
 
   beforeEach(() => {
@@ -72,14 +80,29 @@ describe('Performance Test (150+ Records)', () => {
 
     hashService = new HashService();
     lockService = new LockService();
-
-    orchestrator = new SyncOrchestratorService(
-      mockConfigService,
+    deduplicationService = new DeduplicationService(mockBitrixLeadService, mockLogger);
+    forwardSyncService = new ForwardSyncService(
       mockGoogleSheetsService,
       mockBitrixLeadService,
       mappingService,
       hashService,
+      deduplicationService,
+      mockLogger,
+    );
+    reverseSyncService = new ReverseSyncService(
+      mockGoogleSheetsService,
+      mockBitrixLeadService,
+      mappingService,
+      hashService,
+      mockLogger,
+    );
+    syncHistoryService = new SyncHistoryService();
+
+    orchestrator = new SyncOrchestratorService(
       lockService,
+      forwardSyncService,
+      reverseSyncService,
+      syncHistoryService,
       mockLogger,
     );
   });

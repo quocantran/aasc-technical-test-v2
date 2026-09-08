@@ -4,23 +4,27 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { SyncOrchestratorService } from './sync-orchestrator.service.js';
 import { HashService } from './hash.service.js';
 import { LockService } from './lock.service.js';
+import { DeduplicationService } from './deduplication.service.js';
+import { ForwardSyncService } from './forward-sync.service.js';
+import { ReverseSyncService } from './reverse-sync.service.js';
+import { SyncHistoryService } from './sync-history.service.js';
 import { SYNC_STATUS_VI, SYSTEM_COLUMNS } from '../../common/constants/sync.constants.js';
 import { ERROR_MESSAGES_VI } from '../../common/constants/error-messages.constants.js';
 
 describe('SyncOrchestratorService', () => {
   let orchestrator: SyncOrchestratorService;
-  let mockConfigService: any;
   let mockGoogleSheetsService: any;
   let mockBitrixLeadService: any;
   let mockMappingService: any;
   let hashService: HashService;
   let lockService: LockService;
+  let deduplicationService: DeduplicationService;
+  let forwardSyncService: ForwardSyncService;
+  let reverseSyncService: ReverseSyncService;
+  let syncHistoryService: SyncHistoryService;
   let mockLogger: any;
 
   beforeEach(() => {
-    mockConfigService = {
-      get: vi.fn().mockReturnValue('ONE_WAY'),
-    };
     mockGoogleSheetsService = {
       readRows: vi.fn(),
       batchUpdateSystemColumns: vi.fn(),
@@ -63,13 +67,29 @@ describe('SyncOrchestratorService', () => {
       printVietnameseSummary: vi.fn(),
     };
 
-    orchestrator = new SyncOrchestratorService(
-      mockConfigService,
+    deduplicationService = new DeduplicationService(mockBitrixLeadService, mockLogger);
+    forwardSyncService = new ForwardSyncService(
       mockGoogleSheetsService,
       mockBitrixLeadService,
       mockMappingService,
       hashService,
+      deduplicationService,
+      mockLogger,
+    );
+    reverseSyncService = new ReverseSyncService(
+      mockGoogleSheetsService,
+      mockBitrixLeadService,
+      mockMappingService,
+      hashService,
+      mockLogger,
+    );
+    syncHistoryService = new SyncHistoryService();
+
+    orchestrator = new SyncOrchestratorService(
       lockService,
+      forwardSyncService,
+      reverseSyncService,
+      syncHistoryService,
       mockLogger,
     );
   });
@@ -512,4 +532,82 @@ describe('SyncOrchestratorService', () => {
     const logs = orchestrator.getRecentLogs();
     expect(Array.isArray(logs)).toBe(true);
   });
+
+  it('TC13: should format lastSyncTime as DD/MM/YYYY HH:mm:ss when writing system updates to sheets', async () => {
+    mockGoogleSheetsService.readRows.mockResolvedValue({
+      rows: [
+        {
+          rowIndex: 2,
+          data: { 'Tiêu đề Lead': 'Lead Date Test', Email: 'datetest@example.com' },
+          rawValues: [],
+          systemFields: { status: '', bitrixLeadId: null, lastSyncTime: null, errorMessage: null, syncHash: null },
+        },
+      ],
+      systemColumnIndices: { [SYNC_STATUS_VI.SYNCED]: 2 },
+    });
+
+    mockMappingService.transformRow.mockReturnValue({
+      success: true,
+      bitrixFields: { TITLE: 'Lead Date Test', EMAIL: [{ VALUE: 'datetest@example.com' }] },
+      canonicalData: { TITLE: 'Lead Date Test' },
+      errors: [],
+      email: 'datetest@example.com',
+      title: 'Lead Date Test',
+    });
+
+    mockBitrixLeadService.findByCommunication.mockResolvedValue([]);
+
+    const result = await orchestrator.runSync();
+    expect(result.created).toBe(1);
+
+    const dateRegex = /^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}:\d{2}$/;
+    expect(mockGoogleSheetsService.batchUpdateSystemColumns).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({
+          rowIndex: 2,
+          status: SYNC_STATUS_VI.SYNCED,
+          bitrixLeadId: 1001,
+          lastSyncTime: expect.stringMatching(dateRegex),
+        }),
+      ]),
+      expect.anything(),
+    );
+  });
+
+  it('TC14: should correctly parse DD/MM/YYYY HH:mm:ss in reverse sync for conflict resolution', async () => {
+    const existingHash = hashService.computeHash({ 'Tiêu đề Lead': 'Title Existing' });
+    mockGoogleSheetsService.readRows.mockResolvedValue({
+      rows: [
+        {
+          rowIndex: 2,
+          data: { 'Tiêu đề Lead': 'Title Existing' },
+          headers: ['Tiêu đề Lead'],
+          systemFields: {
+            status: SYNC_STATUS_VI.SYNCED,
+            bitrixLeadId: '777',
+            lastSyncTime: '08/09/2026 15:30:00', // DD/MM/YYYY HH:mm:ss format
+            syncHash: existingHash,
+          },
+        },
+      ],
+      headers: ['Tiêu đề Lead'],
+      systemColumnIndices: {},
+    });
+
+    // Bitrix lead modified at 2026-09-08 14:00:00 (older than 15:30:00)
+    mockBitrixLeadService.getLead.mockResolvedValue({
+      ID: 777,
+      TITLE: 'Title Existing',
+      DATE_MODIFY: '2026-09-08T07:00:00Z', // 14:00:00 GMT+7 (older than 15:30)
+    });
+
+    mockMappingService.transformBitrixToRow.mockReturnValue({ 'Tiêu đề Lead': 'Title Existing' });
+    mockMappingService.transformRow.mockReturnValue({ canonicalData: { 'Tiêu đề Lead': 'Title Existing' } });
+
+    const res = await orchestrator.syncBitrixToSheets(777);
+    expect(res.updated).toBe(0);
+    expect(mockGoogleSheetsService.updateRowCells).not.toHaveBeenCalled();
+  });
 });
+
+

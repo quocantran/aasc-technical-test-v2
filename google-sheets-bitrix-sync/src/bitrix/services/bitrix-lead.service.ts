@@ -380,11 +380,14 @@ export class BitrixLeadService {
         else if (rawType.includes('date')) detectedType = 'date';
 
         const isCustom = key.startsWith('UF_CRM_');
+        // Exclude generic internal fields that would clutter the selector under 'Trường Bitrix24 khác'
+        if (!isCustom) continue;
+
         const title = (meta as any)?.title || (meta as any)?.listLabel || key;
         resultList.push({
           field: key,
           label: `${title} [${key}]`,
-          group: isCustom ? 'Trường tùy biến (Custom Fields)' : 'Trường Bitrix24 khác',
+          group: 'Trường tùy biến (Custom Fields)',
           type: detectedType,
           isRequired: Boolean((meta as any)?.isRequired),
         });
