@@ -1,0 +1,22 @@
+services:
+  sync-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: google-sheets-bitrix-sync
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:3000"
+    env_file:
+      - .env
+    volumes:
+      - ./config:/usr/src/app/config:ro
+      - ./public:/usr/src/app/public:ro
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+

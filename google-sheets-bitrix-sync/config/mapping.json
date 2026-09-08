@@ -1,0 +1,82 @@
+{
+  "fields": [
+    {
+      "sheetColumn": "Tiêu đề Lead",
+      "bitrixField": "TITLE",
+      "type": "string"
+    },
+    {
+      "sheetColumn": "Tên khách hàng",
+      "bitrixField": "NAME",
+      "type": "string"
+    },
+    {
+      "sheetColumn": "Họ và tên",
+      "bitrixField": "NAME",
+      "type": "string"
+    },
+    {
+      "sheetColumn": "Công ty",
+      "bitrixField": "COMPANY_TITLE",
+      "type": "string"
+    },
+    {
+      "sheetColumn": "Email",
+      "bitrixField": "EMAIL",
+      "type": "multifield",
+      "valueType": "WORK"
+    },
+    {
+      "sheetColumn": "Số điện thoại",
+      "bitrixField": "PHONE",
+      "type": "multifield",
+      "valueType": "WORK"
+    },
+    {
+      "sheetColumn": "Nguồn lead",
+      "bitrixField": "SOURCE_ID",
+      "type": "enum",
+      "valueMapping": {
+        "Website": "WEB",
+        "Facebook": "FACEBOOK",
+        "Đối tác": "PARTNER",
+        "Sự kiện": "TRADE_SHOW",
+        "Giới thiệu": "RECOMMENDATION",
+        "Khác": "OTHER"
+      },
+      "defaultValue": "OTHER"
+    },
+    {
+      "sheetColumn": "Ngân sách dự kiến",
+      "bitrixField": "OPPORTUNITY",
+      "type": "number",
+      "defaultValue": 0
+    },
+    {
+      "sheetColumn": "Ghi chú",
+      "bitrixField": "COMMENTS",
+      "type": "string"
+    },
+    {
+      "sheetColumn": "Trạng thái",
+      "bitrixField": "STATUS_ID",
+      "type": "enum",
+      "valueMapping": {
+        "Mới": "NEW",
+        "Chưa xử lý": "NEW",
+        "Đang liên hệ": "IN_PROCESS",
+        "Đang xử lý": "IN_PROCESS",
+        "Đã xử lý": "PROCESSED",
+        "Hoàn thành": "CONVERTED",
+        "Không tiềm năng": "JUNK"
+      },
+      "defaultValue": "NEW"
+    },
+    {
+      "sheetColumn": "Người phụ trách",
+      "bitrixField": "ASSIGNED_BY_ID",
+      "type": "number",
+      "defaultValue": 1
+    }
+  ]
+}

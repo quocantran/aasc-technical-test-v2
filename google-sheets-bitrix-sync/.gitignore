@@ -1,0 +1,49 @@
+# ====================================================================
+# Node & Build artifacts
+# ====================================================================
+node_modules/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+
+# ====================================================================
+# Environment & Secrets (NEVER COMMIT SENSITIVE DATA)
+# ====================================================================
+.env
+.env.local
+.env.*.local
+config/credentials.json
+!config/credentials.json.example
+config/sync-history.json
+
+# ====================================================================
+# Logs
+# ====================================================================
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ====================================================================
+# OS & System files
+# ====================================================================
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ====================================================================
+# IDEs & Text Editors
+# ====================================================================
+.vscode/
+!.vscode/extensions.json
+.idea/
+*.sublime-workspace
+*.sublime-project
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
