@@ -96,6 +96,17 @@ describe('Application Endpoints (e2e)', () => {
     expect(response.body).toHaveProperty('status', 'accepted');
     expect(response.body).toHaveProperty('leadId', 999);
   });
+
+  it('/api/auth/google/url (GET) should return Google OAuth consent URL', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/api/auth/google/url')
+      .expect(200);
+
+    expect(response.body).toHaveProperty('status', 'success');
+    expect(response.body.data).toHaveProperty('url');
+    expect(response.body.data.url).toContain('accounts.google.com');
+  });
 });
+
 
 

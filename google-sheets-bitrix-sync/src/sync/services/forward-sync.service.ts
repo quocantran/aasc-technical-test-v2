@@ -5,7 +5,7 @@ import { MappingService } from '../../mapping/services/mapping.service.js';
 import { HashService } from './hash.service.js';
 import { DeduplicationService } from './deduplication.service.js';
 import { AppLogger } from '../../common/logger/app-logger.service.js';
-import { SYNC_STATUS_VI } from '../../common/constants/sync.constants.js';
+import { SYNC_STATUS_VI, SYNC_DIRECTIONS } from '../../common/constants/sync.constants.js';
 import { ERROR_MESSAGES_VI } from '../../common/constants/error-messages.constants.js';
 import { RowUpdatePayload } from '../../google-sheets/interfaces/sheet-row.interface.js';
 import { formatSyncDateTime } from '../../common/utils/date.helper.js';
@@ -36,12 +36,16 @@ export class ForwardSyncService implements IForwardSyncService {
     let updated = 0;
     let skipped = 0;
     let failed = 0;
+    const syncedLeadIds: (string | number)[] = [];
 
     const updates: RowUpdatePayload[] = [];
 
     this.mappingService.loadMappingConfig();
     this.logger.log('Starting Google Sheets -> Bitrix24 synchronization pipeline', 'ForwardSyncService');
+    const readStart = Date.now();
     const { rows, systemColumnIndices } = await this.googleSheetsService.readRows();
+    const readDuration = Date.now() - readStart;
+    this.logger.log(`[Phase 1] Sheet data read & verified in ${readDuration}ms (${rows.length} rows)`, 'ForwardSyncService');
     totalRows = rows.length;
 
     const candidates: CandidateRow[] = [];
@@ -95,9 +99,13 @@ export class ForwardSyncService implements IForwardSyncService {
     }
 
     // Deduplicates CREATE candidates against Bitrix24 by email and phone
+    const dedupStart = Date.now();
     await this.deduplicationService.deduplicateCandidates(candidates, updates, () => failed++);
+    const dedupDuration = Date.now() - dedupStart;
+    this.logger.log(`[Phase 2] Deduplication check against Bitrix24 completed in ${dedupDuration}ms`, 'ForwardSyncService');
 
     // Executes Bitrix24 operations using Batch API
+    const bitrixStart = Date.now();
     const updateCandidates = candidates.filter((c) => c.action === 'UPDATE' && c.targetLeadId);
     const createCandidates = candidates.filter((c) => c.action === 'CREATE');
 
@@ -118,6 +126,7 @@ export class ForwardSyncService implements IForwardSyncService {
 
         if (updateResult.successes[key] !== undefined) {
           updated++;
+          syncedLeadIds.push(candidate.targetLeadId!);
           updates.push({
             rowIndex: candidate.sheetRow.rowIndex,
             status: SYNC_STATUS_VI.SYNCED,
@@ -162,6 +171,7 @@ export class ForwardSyncService implements IForwardSyncService {
 
         if (newLeadId) {
           created++;
+          syncedLeadIds.push(newLeadId);
           updates.push({
             rowIndex: candidate.sheetRow.rowIndex,
             status: SYNC_STATUS_VI.SYNCED,
@@ -175,6 +185,7 @@ export class ForwardSyncService implements IForwardSyncService {
           const recoveredLeadId = await this.deduplicationService.attemptTimeoutRecovery(candidate);
           if (recoveredLeadId) {
             created++;
+            syncedLeadIds.push(recoveredLeadId);
             updates.push({
               rowIndex: candidate.sheetRow.rowIndex,
               status: SYNC_STATUS_VI.SYNCED,
@@ -197,10 +208,16 @@ export class ForwardSyncService implements IForwardSyncService {
       }
     }
 
+    const bitrixDuration = Date.now() - bitrixStart;
+    this.logger.log(`[Phase 3] Bitrix24 batch operations (${created} created, ${updated} updated) completed in ${bitrixDuration}ms`, 'ForwardSyncService');
+
     // Writes all system status updates back to Google Sheets in one batch
+    const writeStart = Date.now();
     if (updates.length > 0) {
       await this.googleSheetsService.batchUpdateSystemColumns(updates, systemColumnIndices);
     }
+    const writeDuration = Date.now() - writeStart;
+    this.logger.log(`[Phase 4] Sheet metadata writeback completed in ${writeDuration}ms (${updates.length} rows)`, 'ForwardSyncService');
 
     const durationMs = Date.now() - startTime;
     if (typeof this.googleSheetsService?.setCachedRowCount === 'function') {
@@ -215,7 +232,8 @@ export class ForwardSyncService implements IForwardSyncService {
       failed,
       durationMs,
       timestamp: new Date().toISOString(),
-      direction: 'SHEETS_TO_BITRIX',
+      direction: SYNC_DIRECTIONS.SHEETS_TO_BITRIX,
+      syncedLeadIds,
     };
   }
 }

@@ -1,7 +1,4 @@
-/**
- * Formats a Date instance into DD/MM/YYYY HH:mm:ss for Google Sheets
- * Example: 08/09/2026 21:42:15
- */
+// Formats a Date instance into DD/MM/YYYY HH:mm:ss for Google Sheets (e.g. 08/09/2026 21:42:15)
 export function formatSyncDateTime(date: Date = new Date()): string {
   const pad = (n: number) => String(n).padStart(2, '0');
   const day = pad(date.getDate());
@@ -13,10 +10,7 @@ export function formatSyncDateTime(date: Date = new Date()): string {
   return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`;
 }
 
-/**
- * Parses a date-time string from Google Sheets (which may be DD/MM/YYYY HH:mm:ss, DD/MM/YYYY, or ISO 8601)
- * into a millisecond timestamp for comparison.
- */
+// Parses Google Sheets date-time string (DD/MM/YYYY HH:mm:ss or ISO 8601) into millisecond timestamp
 export function parseSyncDateTime(str?: string | null): number {
   if (!str) return 0;
   const trimmed = str.trim();

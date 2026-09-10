@@ -27,7 +27,7 @@
 
     <div id="statusAlert" class="status-alert"></div>
 
-    <!-- Thống kê trạng thái -->
+    <!-- Synchronization statistics summary cards -->
     <div class="stats-grid">
       <div class="stat-card">
         <div class="stat-label">Khách hàng trên Sheet</div>
@@ -62,7 +62,7 @@
       <div id="metaDuration">Thời lượng: -</div>
     </div>
 
-    <!-- Thanh công cụ hành động -->
+    <!-- Action toolbar for triggering sync processes -->
     <div class="action-panel">
       <div class="btn-group">
         <button id="btnTriggerSync" class="btn btn-primary" onclick="triggerSync()">
@@ -71,16 +71,13 @@
         <button id="btnTriggerTwoWay" class="btn btn-secondary" onclick="triggerTwoWay()">
           🔄 Kéo dữ liệu về Sheet
         </button>
-        <label class="checkbox-label">
-          <input type="checkbox" id="forceSync"> Đồng bộ lại toàn bộ dòng
-        </label>
       </div>
       <button class="btn btn-secondary" onclick="fetchStatus()">
         ↻ Làm mới
       </button>
     </div>
 
-    <!-- Cấu hình Mapping -->
+    <!-- Column mapping configuration card -->
     <div class="card">
       <div class="card-title">
         <h3>Quy tắc ánh xạ cột (Field Mapping)</h3>
@@ -94,7 +91,7 @@
         </div>
       </div>
 
-      <!-- Form thêm quy tắc mới -->
+      <!-- Mapping rule creation form -->
       <div id="mappingFormContainer" class="form-box" style="display: none;">
         <div class="form-grid">
           <div class="form-group">
@@ -131,11 +128,7 @@
           </div>
         </div>
 
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border-subtle); flex-wrap: wrap; gap: 10px;">
-          <label class="checkbox-label">
-            <input type="checkbox" id="mapRequired">
-            <span>Bắt buộc có dữ liệu</span>
-          </label>
+        <div style="display: flex; justify-content: flex-end; align-items: center; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border-subtle); flex-wrap: wrap; gap: 10px;">
           <div style="display: flex; gap: 8px;">
             <button class="btn btn-secondary" onclick="toggleMappingForm(false)">Hủy</button>
             <button class="btn btn-primary" onclick="saveNewMappingRule()">Lưu quy tắc</button>
@@ -143,33 +136,33 @@
         </div>
       </div>
 
-      <!-- Bảng danh sách ánh xạ -->
+      <!-- Configured field mappings data table -->
       <div class="table-responsive">
         <table>
           <thead>
             <tr>
-              <th style="width: 25%;">Cột Google Sheets</th>
+              <th style="width: 28%;">Cột Google Sheets</th>
               <th style="width: 5%; text-align: center;"></th>
-              <th style="width: 30%;">Trường Bitrix24 CRM</th>
-              <th style="width: 15%;">Kiểu dữ liệu</th>
-              <th style="width: 13%;">Mặc định</th>
-              <th style="width: 7%; text-align: center;">Bắt buộc</th>
+              <th style="width: 32%;">Trường Bitrix24 CRM</th>
+              <th style="width: 18%;">Kiểu dữ liệu</th>
+              <th style="width: 12%;">Mặc định</th>
               <th style="width: 5%; text-align: right;"></th>
             </tr>
           </thead>
           <tbody id="mappingTableBody">
             <tr>
-              <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 20px;">Đang tải danh sách ánh xạ...</td>
+              <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 20px;">Đang tải danh sách ánh xạ...</td>
             </tr>
           </tbody>
         </table>
       </div>
     </div>
 
-    <!-- Lịch sử đồng bộ -->
+    <!-- Synchronization execution history log -->
     <div class="card">
       <div class="card-title">
-        <h3>Lịch sử đồng bộ gần nhất</h3>
+        <h3>Lịch sử 20 lần đồng bộ gần nhất</h3>
+        <span id="logsCounter" style="font-size: 12px; color: var(--text-muted); background: var(--bg-card); padding: 3px 10px; border-radius: 12px; border: 1px solid var(--border-subtle);">20 lần gần nhất (SQLite)</span>
       </div>
       <div id="logsContainer">
         <div style="color: var(--text-muted); font-size: 13px; padding: 8px 0;">Chưa có lượt đồng bộ nào gần đây.</div>

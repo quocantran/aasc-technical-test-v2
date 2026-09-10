@@ -14,16 +14,17 @@
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
-    "sync": "nest start --entryFile cli",
+    "sync": "nest start --entryFile cli --",
     "benchmark": "node scripts/live_benchmark.cjs",
     "benchmark:cleanup": "node scripts/cleanup_benchmark.cjs",
     "lint": "oxlint src/ test/",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:cov": "vitest run --coverage",
-    "test:debug": "vitest --inspect-brk --no-file-parallelism",
-    "test:perf": "vitest run src/sync/services/performance.spec.ts",
-    "test:e2e": "vitest run --config ./vitest.config.e2e.ts"
+    "test:perf": "node scripts/live_benchmark.cjs",
+    "test:e2e": "vitest run --config ./vitest.config.e2e.ts",
+    "test:system": "node scripts/system_test.cjs",
+    "scan:comments": "node scripts/codebase_scanner.cjs"
   },
   "dependencies": {
     "@nestjs/axios": "^12.0.0",
@@ -32,6 +33,7 @@
     "@nestjs/core": "^12.0.1",
     "@nestjs/platform-express": "^12.0.1",
     "@nestjs/schedule": "^12.0.1",
+    "@nestjs/typeorm": "^12.0.1",
     "axios": "^1.20.0",
     "googleapis": "^178.0.0",
     "joi": "^18.2.8",
@@ -42,6 +44,8 @@
     "qs": "^6.16.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
+    "sqlite3": "^5.1.7",
+    "typeorm": "^0.3.31",
     "uuid": "^14.0.2"
   },
   "devDependencies": {

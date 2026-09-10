@@ -8,7 +8,7 @@ interface SyncCommandOptions {
 }
 
 // Command runner enabling manual synchronization via command-line interface
-@Command({ name: 'sync', description: 'Run Google Sheets to Bitrix24 sync pipeline' })
+@Command({ name: 'sync', options: { isDefault: true }, description: 'Run Google Sheets to Bitrix24 sync pipeline' })
 export class SyncCommand extends CommandRunner {
   constructor(
     private readonly orchestrator: SyncOrchestratorService,

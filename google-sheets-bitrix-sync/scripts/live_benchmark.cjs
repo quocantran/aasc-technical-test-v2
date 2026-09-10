@@ -79,8 +79,12 @@ async function main() {
   console.log('--------------------------------------------------------------------------------\n');
 
   // 1. Google Sheets Client Setup
+  const credentialsPath = process.env.GOOGLE_SHEETS_CREDENTIALS_PATH
+    ? path.resolve(__dirname, '..', process.env.GOOGLE_SHEETS_CREDENTIALS_PATH)
+    : path.resolve(__dirname, '../config/credentials.json');
+
   const auth = new google.auth.GoogleAuth({
-    keyFile: './config/credentials.json',
+    keyFile: credentialsPath,
     scopes: ['https://www.googleapis.com/auth/spreadsheets'],
   });
   const sheets = google.sheets({ version: 'v4', auth });
@@ -110,6 +114,21 @@ async function main() {
   const companies = ['Công ty Á Châu Tech', 'Tập đoàn Sao Mai Solution', 'Minh Phát Logistics', 'Tập đoàn Hòa Bình Real', 'Đại Nam Group'];
   const sources = ['Website', 'Facebook', 'Đối tác', 'Sự kiện', 'Giới thiệu'];
 
+  const headers = baselineValues[0] || [];
+  const col = {
+    name: headers.findIndex((h) => /tên\s*khách\s*hàng|họ\s*và\s*tên/i.test(h)),
+    company: headers.findIndex((h) => /công\s*ty/i.test(h)),
+    email: headers.findIndex((h) => /email/i.test(h)),
+    phone: headers.findIndex((h) => /số\s*điện\s*thoại|sđt/i.test(h)),
+    source: headers.findIndex((h) => /nguồn/i.test(h)),
+    opportunity: headers.findIndex((h) => /ngân\s*sách/i.test(h)),
+    status: headers.findIndex((h) => /trạng\s*thái(?!\s*đồng\s*bộ)/i.test(h)),
+    assigned: headers.findIndex((h) => /người\s*phụ\s*trách|phụ\s*trách/i.test(h)),
+    comments: headers.findIndex((h) => /ghi\s*chú/i.test(h)),
+    tax: headers.findIndex((h) => /mã\s*số\s*thuế/i.test(h)),
+    industry: headers.findIndex((h) => /ngành\s*nghề/i.test(h)),
+  };
+
   for (let i = 1; i <= RECORD_COUNT; i++) {
     const fn = firstNames[i % firstNames.length];
     const ln = lastNames[i % lastNames.length];
@@ -120,30 +139,23 @@ async function main() {
     const opportunity = String(20000000 + (i * 1500000));
     const company = companies[i % companies.length];
     const source = sources[i % sources.length];
-    const title = `[BENCHMARK-${timestamp}] Khách hàng: ${fullName}`;
 
-    // Columns: Tiêu đề Lead, Tên khách hàng, Công ty, Email, Số điện thoại, Nguồn lead, Ngân sách dự kiến, Trạng thái, Người phụ trách, Ghi chú, Mã số thuế, Ngành nghề, [system columns blank]
-    testRows.push([
-      title,
-      fullName,
-      company,
-      email,
-      phone,
-      source,
-      opportunity,
-      'Mới',
-      '1',
-      `Khách hàng benchmark tải lớn đợt ${i} - kiểm thử hiệu năng 150+`,
-      `TAX_${timestamp}_${i}`,
-      'Công nghệ thông tin',
-      '', // Trạng thái đồng bộ (blank)
-      '', // Lead ID Bitrix24 (blank)
-      '', // Thời gian đồng bộ (blank)
-      '', // Lỗi (blank)
-      '', // Sync Hash (blank)
-    ]);
+    const row = new Array(headers.length).fill('');
+    if (col.name >= 0) row[col.name] = `[BENCHMARK-${timestamp}] ${fullName}`;
+    if (col.company >= 0) row[col.company] = company;
+    if (col.email >= 0) row[col.email] = email;
+    if (col.phone >= 0) row[col.phone] = phone;
+    if (col.source >= 0) row[col.source] = source;
+    if (col.opportunity >= 0) row[col.opportunity] = opportunity;
+    if (col.status >= 0) row[col.status] = 'Mới';
+    if (col.assigned >= 0) row[col.assigned] = '1';
+    if (col.comments >= 0) row[col.comments] = `Khách hàng benchmark tải lớn đợt ${i} - [BENCHMARK-${timestamp}]`;
+    if (col.tax >= 0) row[col.tax] = `TAX_${timestamp}_${i}`;
+    if (col.industry >= 0) row[col.industry] = 'Công nghệ thông tin';
+
+    testRows.push(row);
   }
-  console.log(`      ✓ Generated ${testRows.length} valid lead rows with unique emails & phones`);
+  console.log(`      ✓ Generated ${testRows.length} valid lead rows matching Google Sheet columns`);
 
   // 4. Append 150 rows to Google Sheet
   console.log(`\n[3/6] Appending ${testRows.length} rows to Google Sheet via Google Sheets API v4...`);
@@ -199,14 +211,19 @@ async function main() {
     range: 'Leads!A1:ZZ',
   });
   const allRowsAfter = sheetAfter.data.values || [];
+  const headersAfter = allRowsAfter[0] || [];
+  const colSyncStatus = headersAfter.findIndex((h) => /trạng\s*thái\s*đồng\s*bộ/i.test(h));
+  const colLeadId = headersAfter.findIndex((h) => /lead\s*id/i.test(h));
+  const colHash = headersAfter.findIndex((h) => /hash/i.test(h));
+
   const newlyCreatedRows = allRowsAfter.slice(baselineValues.length);
   
   const createdLeadIds = [];
   let syncedOnSheetCount = 0;
   for (const row of newlyCreatedRows) {
-    const status = row[12]; // Trạng thái đồng bộ
-    const leadId = row[13]; // Lead ID Bitrix24
-    const hash = row[16];   // Sync Hash
+    const status = colSyncStatus >= 0 ? row[colSyncStatus] : row[11];
+    const leadId = colLeadId >= 0 ? row[colLeadId] : row[12];
+    const hash = colHash >= 0 ? row[colHash] : row[15];
 
     if (status === 'ĐÃ ĐỒNG BỘ' && leadId && hash) {
       syncedOnSheetCount++;
@@ -226,8 +243,14 @@ async function main() {
 
   // 7. Test Idempotency / Hash Caching speed on 150+ records
   console.log('\n[6/6] Testing Idempotency & SHA-256 Hash Caching speed (2nd sync run)...');
+  // Allow brief burst of Bitrix24 post-create webhooks to settle
+  await sleep(3500);
   const secondSyncStart = Date.now();
-  const secondRes = await axios.post(`${API_BASE}/sync/trigger`, { force: false }, { timeout: 30000 });
+  let secondRes = await axios.post(`${API_BASE}/sync/trigger`, { force: false }, { timeout: 30000 });
+  if (secondRes.data?.isSkippedDueToLock) {
+    await sleep(2000);
+    secondRes = await axios.post(`${API_BASE}/sync/trigger`, { force: false }, { timeout: 30000 });
+  }
   const secondSyncDuration = Date.now() - secondSyncStart;
   const secondData = secondRes.data?.data || {};
   console.log(`      ✓ 2nd sync run completed in ${secondSyncDuration} ms`);
@@ -242,9 +265,11 @@ async function main() {
   console.log('\n================================================================================');
   console.log('                  LIVE BENCHMARK PERFORMANCE RESULTS                            ');
   console.log('================================================================================');
-  console.log(`  Live Dataset Tested        : ${RECORD_COUNT} real lead records`);
+  console.log(`  Total Sheet Rows Scanned   : ${syncData.totalRows} rows (${RECORD_COUNT} newly created + ${baselineRowCount} baseline skipped)`);
+  console.log(`  New Load Tested (Dataset)  : ${RECORD_COUNT} real lead records`);
   console.log(`  Target Cloud Services      : Google Sheets API v4 + Bitrix24 CRM Cloud REST API`);
   console.log(`  Status Written to Sheet    : ${syncedOnSheetCount}/${RECORD_COUNT} rows (Confirmed "ĐÃ ĐỒNG BỘ")`);
+  console.log(`  Preserved Baseline Rows    : ${syncData.skipped} records (Unchanged, 0 API quota wasted)`);
   console.log(`  Failed Records             : ${syncData.failed} records (0 errors)`);
   console.log('--------------------------------------------------------------------------------');
   console.log(`  End-to-End Execution Time  : ${syncDuration} ms (${(syncDuration / 1000).toFixed(2)} seconds)`);

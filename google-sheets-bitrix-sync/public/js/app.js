@@ -3,11 +3,35 @@
  * Clean, efficient, and deduplicated field mapping management
  */
 
+// Shared constants for UI mappings and intervals
+const DEFAULT_STATUS_MAPPINGS = {
+  'Mới': 'NEW',
+  'Chưa xử lý': 'NEW',
+  'Đang liên hệ': 'IN_PROCESS',
+  'Đang xử lý': 'IN_PROCESS',
+  'Đã xử lý': 'PROCESSED',
+  'Hoàn thành': 'CONVERTED',
+  'Không tiềm năng': 'JUNK',
+};
+
+const DEFAULT_SOURCE_MAPPINGS = {
+  'Website': 'WEB',
+  'Facebook': 'FACEBOOK',
+  'Đối tác': 'PARTNER',
+  'Sự kiện': 'TRADE_SHOW',
+  'Giới thiệu': 'RECOMMENDATION',
+  'Khác': 'OTHER',
+};
+
+const SYNC_STATUS_POLL_INTERVAL_MS = 30000;
+const ALERT_DISMISS_DELAY_MS = 6000;
+const MAX_HISTORY_LOGS_QUERY = 20;
+
 let availableBitrixFields = [];
 let bitrixFieldsMap = new Map();
 let currentMappingConfig = { fields: [] };
 
-// Tải danh mục trường Bitrix Lead từ máy chủ
+// Fetches Bitrix Lead fields catalog from server
 async function loadBitrixFields() {
   const select = document.getElementById('mapBitrixField');
   if (!select) return;
@@ -27,27 +51,27 @@ async function loadBitrixFields() {
       renderBitrixFieldSelect();
     }
   } catch (err) {
-    console.error('Không thể tải danh sách trường Bitrix24:', err);
+    console.error('Failed to load Bitrix24 fields:', err);
     select.innerHTML = '<option value="">(Lỗi tải danh mục trường, vui lòng làm mới)</option>';
   }
 }
 
-// Render dropdown chọn trường Bitrix: LOẠI BỎ "Trường Bitrix24 khác" và CHỈ HIỂN THỊ CÁC TRƯỜNG CHƯA ĐƯỢC MAPPING
+// Renders Bitrix field selector with only unmapped fields and valid categories
 function renderBitrixFieldSelect() {
   const select = document.getElementById('mapBitrixField');
   if (!select) return;
 
-  // Tập hợp các trường Bitrix đã được ánh xạ hiện tại
+  // Set of currently mapped Bitrix fields
   const mappedBitrixFields = new Set(
     (currentMappingConfig.fields || []).map((f) => f.bitrixField),
   );
 
-  // Lọc: Bỏ trường đã có trong mapping VÀ Bỏ nhóm "Trường Bitrix24 khác"
+  // Filters out already mapped fields and uncategorized groups
   const unmappedFields = availableBitrixFields.filter((f) => {
-    // Không cho phép chọn trường đã có trong mapping
+    // Skip fields already present in mapping
     if (mappedBitrixFields.has(f.field)) return false;
 
-    // Loại bỏ triệt để nhóm "Trường Bitrix24 khác"
+    // Exclude other or internal field groups
     const group = (f.group || '').trim().toLowerCase();
     if (group.includes('khác') || group.includes('other')) return false;
 
@@ -56,7 +80,7 @@ function renderBitrixFieldSelect() {
 
   select.innerHTML = '<option value="">-- Chọn trường Bitrix24 CRM --</option>';
 
-  // Gom nhóm theo danh mục
+  // Groups unmapped fields by category
   const grouped = {};
   for (const f of unmappedFields) {
     const gName = f.group || 'Thông tin chung';
@@ -79,7 +103,7 @@ function renderBitrixFieldSelect() {
     select.appendChild(optgroup);
   }
 
-  // Tùy chọn cho trường tùy biến khác (UF_CRM_*)
+  // Option for custom user fields (UF_CRM_*)
   const customGroup = document.createElement('optgroup');
   customGroup.label = 'Trường tùy biến';
   const customOpt = document.createElement('option');
@@ -96,12 +120,11 @@ function renderBitrixFieldSelect() {
   }
 }
 
-// Xử lý tự động khi người dùng chọn một trường Bitrix trong dropdown
+// Automatically updates field types and defaults upon selection
 function onBitrixFieldChange() {
   const select = document.getElementById('mapBitrixField');
   const customGroup = document.getElementById('customFieldGroup');
   const typeSelect = document.getElementById('mapType');
-  const reqCheckbox = document.getElementById('mapRequired');
   const defaultInput = document.getElementById('mapDefault');
 
   const selectedValue = select.value;
@@ -122,16 +145,12 @@ function onBitrixFieldChange() {
     typeSelect.value = meta.type;
   }
 
-  if (meta.isRequired) {
-    reqCheckbox.checked = true;
-  }
-
   if (meta.defaultValue !== undefined && !defaultInput.value) {
     defaultInput.value = meta.defaultValue;
   }
 }
 
-// Tải trạng thái đồng bộ và cập nhật các thẻ thống kê
+// Fetches sync metrics and updates dashboard cards
 async function fetchStatus() {
   try {
     const res = await fetch('/api/sync/status');
@@ -161,14 +180,14 @@ async function fetchStatus() {
 
     await fetchLogs();
   } catch (error) {
-    console.error('Lỗi khi tải trạng thái đồng bộ:', error);
+    console.error('Failed to fetch sync status:', error);
   }
 }
 
-// Thực hiện đẩy dữ liệu từ Google Sheets sang Bitrix24 CRM
+// Triggers forward sync from Google Sheets to Bitrix24 CRM
 async function triggerSync() {
   const btn = document.getElementById('btnTriggerSync');
-  const force = document.getElementById('forceSync').checked;
+  const force = false;
 
   btn.disabled = true;
   btn.innerText = '⏳ Đang đồng bộ...';
@@ -209,7 +228,7 @@ async function triggerSync() {
   }
 }
 
-// Thực hiện kéo dữ liệu từ Bitrix24 về Google Sheets
+// Triggers reverse sync from Bitrix24 to Google Sheets
 async function triggerTwoWay() {
   const btn = document.getElementById('btnTriggerTwoWay');
 
@@ -248,7 +267,7 @@ async function triggerTwoWay() {
   }
 }
 
-// Bật / tắt mở form tạo quy tắc ánh xạ
+// Toggles mapping rule creation form visibility
 function toggleMappingForm(forceState) {
   const container = document.getElementById('mappingFormContainer');
   if (!container) return;
@@ -265,14 +284,13 @@ function toggleMappingForm(forceState) {
   }
 }
 
-// Lưu quy tắc ánh xạ cột mới vào backend
+// Persists a newly configured mapping rule to backend
 async function saveNewMappingRule() {
   const sheetCol = document.getElementById('mapSheetCol').value.trim();
   const bitrixFieldSelect = document.getElementById('mapBitrixField').value.trim();
   const customFieldName = document.getElementById('mapCustomFieldName')?.value.trim();
   const type = document.getElementById('mapType').value;
   const defVal = document.getElementById('mapDefault').value.trim();
-  const required = document.getElementById('mapRequired').checked;
 
   if (!sheetCol) {
     showAlert('error', 'Vui lòng nhập tên cột trên Google Sheets!');
@@ -296,7 +314,7 @@ async function saveNewMappingRule() {
     return;
   }
 
-  // Chống tạo quy tắc trùng lặp trường Bitrix24
+  // Prevents creating duplicate rules for the same Bitrix field
   const alreadyMapped = currentMappingConfig.fields.some(
     (f) => f.bitrixField.toUpperCase() === finalBitrixField.toUpperCase(),
   );
@@ -312,32 +330,16 @@ async function saveNewMappingRule() {
   };
 
   if (defVal) newField.defaultValue = defVal;
-  if (required) newField.required = true;
   if (type === 'multifield') newField.valueType = 'WORK';
 
-  // Tự động gắn bảng chuyển đổi giá trị tiếng Việt chuẩn cho Status và Source
+  // Automatically sets enum value mappings for standard status and source fields
   if (finalBitrixField === 'STATUS_ID') {
     newField.type = 'enum';
-    newField.valueMapping = {
-      'Mới': 'NEW',
-      'Chưa xử lý': 'NEW',
-      'Đang liên hệ': 'IN_PROCESS',
-      'Đang xử lý': 'IN_PROCESS',
-      'Đã xử lý': 'PROCESSED',
-      'Hoàn thành': 'CONVERTED',
-      'Không tiềm năng': 'JUNK',
-    };
+    newField.valueMapping = { ...DEFAULT_STATUS_MAPPINGS };
     if (!defVal) newField.defaultValue = 'NEW';
   } else if (finalBitrixField === 'SOURCE_ID') {
     newField.type = 'enum';
-    newField.valueMapping = {
-      'Website': 'WEB',
-      'Facebook': 'FACEBOOK',
-      'Đối tác': 'PARTNER',
-      'Sự kiện': 'TRADE_SHOW',
-      'Giới thiệu': 'RECOMMENDATION',
-      'Khác': 'OTHER',
-    };
+    newField.valueMapping = { ...DEFAULT_SOURCE_MAPPINGS };
     if (!defVal) newField.defaultValue = 'OTHER';
   }
 
@@ -359,7 +361,6 @@ async function saveNewMappingRule() {
       if (document.getElementById('mapCustomFieldName')) document.getElementById('mapCustomFieldName').value = '';
       document.getElementById('customFieldGroup').style.display = 'none';
       document.getElementById('mapDefault').value = '';
-      document.getElementById('mapRequired').checked = false;
 
       await loadMappingTable();
     } else {
@@ -370,7 +371,7 @@ async function saveNewMappingRule() {
   }
 }
 
-// Xóa quy tắc ánh xạ theo chỉ số mảng
+// Removes a mapping rule by its index
 async function deleteMappingRule(index) {
   const fieldName = currentMappingConfig.fields[index]?.sheetColumn;
   const bitrixField = currentMappingConfig.fields[index]?.bitrixField;
@@ -397,7 +398,7 @@ async function deleteMappingRule(index) {
   }
 }
 
-// Nhãn hiển thị kiểu dữ liệu
+// Returns formatted HTML badge for given data type
 function getFriendlyTypeBadge(type, valueType) {
   switch (type) {
     case 'multifield':
@@ -414,7 +415,7 @@ function getFriendlyTypeBadge(type, valueType) {
   }
 }
 
-// Tải và hiển thị danh sách quy tắc ánh xạ hiện tại
+// Loads and renders existing mapping rules table
 async function loadMappingTable() {
   const tbody = document.getElementById('mappingTableBody');
 
@@ -427,7 +428,7 @@ async function loadMappingTable() {
     if (json.data && Array.isArray(json.data.fields) && json.data.fields.length > 0) {
       currentMappingConfig = json.data;
 
-      // Cập nhật lại dropdown trường Bitrix sau khi nạp mapping mới
+      // Refreshes Bitrix field dropdown options after table reload
       renderBitrixFieldSelect();
 
       json.data.fields.forEach((field, index) => {
@@ -436,9 +437,6 @@ async function loadMappingTable() {
         const meta = bitrixFieldsMap.get(field.bitrixField);
         const fieldDisplayName = meta ? meta.label : field.bitrixField;
         const typeBadge = getFriendlyTypeBadge(field.type, field.valueType);
-        const requiredBadge = field.required
-          ? '<span style="color: var(--danger); font-weight: 600; font-size: 12px;">Bắt buộc</span>'
-          : '<span style="color: var(--text-dim); font-size: 12px;">Tùy chọn</span>';
 
         const defaultDisplay = field.defaultValue !== undefined && field.defaultValue !== ''
           ? `<code class="code-field">${field.defaultValue}</code>`
@@ -453,7 +451,6 @@ async function loadMappingTable() {
           </td>
           <td>${typeBadge}</td>
           <td>${defaultDisplay}</td>
-          <td style="text-align: center;">${requiredBadge}</td>
           <td style="text-align: right;">
             <button class="btn btn-danger" style="padding: 4px 10px; font-size: 12px;" onclick="deleteMappingRule(${index})">
               Xóa
@@ -463,35 +460,40 @@ async function loadMappingTable() {
         tbody.appendChild(tr);
       });
     } else {
-      tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 20px;">Chưa có quy tắc nào.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 20px;">Chưa có quy tắc nào.</td></tr>';
       renderBitrixFieldSelect();
     }
   } catch (error) {
-    console.error('Lỗi khi tải bảng cấu hình mapping:', error);
-    tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--danger); padding: 20px;">Lỗi tải dữ liệu mapping.</td></tr>';
+    console.error('Failed to load mapping configuration table:', error);
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--danger); padding: 20px;">Lỗi tải dữ liệu mapping.</td></tr>';
   }
 }
 
-// Tải lịch sử các lượt thực thi đồng bộ gần đây
+// Fetches recent execution history logs from SQLite database
 async function fetchLogs() {
   const container = document.getElementById('logsContainer');
+  const counter = document.getElementById('logsCounter');
 
   try {
-    const res = await fetch('/api/sync/logs');
+    const res = await fetch(`/api/sync/logs?limit=${MAX_HISTORY_LOGS_QUERY}`);
     const json = await res.json();
 
     if (json.data && Array.isArray(json.data) && json.data.length > 0) {
       container.innerHTML = '';
-      json.data.forEach((log) => {
+      if (counter) counter.innerText = `${json.data.length} lần gần nhất (SQLite)`;
+
+      json.data.forEach((log, index) => {
         const div = document.createElement('div');
         div.className = 'log-item';
         const isTwoWay = log.direction === 'BITRIX_TO_SHEETS';
         const directionLabel = isTwoWay ? '🔄 Kéo về Sheet' : '▶ Đẩy sang CRM';
         const directionColor = isTwoWay ? 'var(--primary)' : 'var(--success)';
         const timeFormatted = new Date(log.timestamp).toLocaleTimeString('vi-VN') + ' - ' + new Date(log.timestamp).toLocaleDateString('vi-VN');
+        const orderNumber = index + 1;
 
         div.innerHTML = `
-          <div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 11px; font-weight: 600; color: var(--text-dim); background: var(--border-subtle); padding: 2px 6px; border-radius: 4px;">#${orderNumber}</span>
             <strong style="color: ${directionColor};">${directionLabel}</strong>
             <span class="log-meta">
               Tạo mới: <b style="color: var(--success);">${log.created}</b> | Cập nhật: <b style="color: var(--primary);">${log.updated}</b> | Bỏ qua: ${log.skipped} | Lỗi: <b style="color: ${log.failed > 0 ? 'var(--danger)' : 'var(--text-dim)'};">${log.failed}</b> (${log.durationMs}ms)
@@ -501,13 +503,16 @@ async function fetchLogs() {
         `;
         container.appendChild(div);
       });
+    } else {
+      if (counter) counter.innerText = '0 lần gần nhất (SQLite)';
+      container.innerHTML = '<div style="color: var(--text-muted); font-size: 13px; padding: 8px 0;">Chưa có lượt đồng bộ nào gần đây.</div>';
     }
   } catch (error) {
-    console.error('Lỗi khi tải nhật ký đồng bộ:', error);
+    console.error('Failed to fetch sync execution history:', error);
   }
 }
 
-// Hiển thị thông báo trạng thái
+// Displays toast notification alert in dashboard
 function showAlert(type, message) {
   const el = document.getElementById('statusAlert');
   if (!el) return;
@@ -518,13 +523,13 @@ function showAlert(type, message) {
     if (el.className.includes('active')) {
       el.className = 'status-alert';
     }
-  }, 6000);
+  }, ALERT_DISMISS_DELAY_MS);
 }
 
-// Khởi chạy khi DOM sẵn sàng
+// Initializes dashboard when DOM content is loaded
 document.addEventListener('DOMContentLoaded', async () => {
   await loadBitrixFields();
   await loadMappingTable();
   await fetchStatus();
-  setInterval(fetchStatus, 30000);
+  setInterval(fetchStatus, SYNC_STATUS_POLL_INTERVAL_MS);
 });

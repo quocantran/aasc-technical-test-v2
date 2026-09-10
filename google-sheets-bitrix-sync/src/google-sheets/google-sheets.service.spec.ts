@@ -246,4 +246,119 @@ describe('GoogleSheetsService', () => {
     await service.batchUpdateSystemColumns([], {});
     expect(mockSheetsClient.spreadsheets.values.batchUpdate).not.toHaveBeenCalled();
   });
+
+  it('should batch delete rows in single batchUpdate API call with descending order', async () => {
+    // Rows 2, 3, 5, 8, 9 merged into ranges [1, 3), [4, 5), [7, 9)
+    // Deletes in descending order [7, 9), [4, 5), [1, 3)
+    await service.deleteRows([2, 3, 5, 8, 9]);
+
+    expect(mockSheetsClient.spreadsheets.batchUpdate).toHaveBeenCalledWith({
+      spreadsheetId: 'test-sheet-id',
+      requestBody: {
+        requests: [
+          {
+            deleteDimension: {
+              range: {
+                sheetId: 0,
+                dimension: 'ROWS',
+                startIndex: 7,
+                endIndex: 9,
+              },
+            },
+          },
+          {
+            deleteDimension: {
+              range: {
+                sheetId: 0,
+                dimension: 'ROWS',
+                startIndex: 4,
+                endIndex: 5,
+              },
+            },
+          },
+          {
+            deleteDimension: {
+              range: {
+                sheetId: 0,
+                dimension: 'ROWS',
+                startIndex: 1,
+                endIndex: 3,
+              },
+            },
+          },
+        ],
+      },
+    });
+  });
+
+  it('should group multiple contiguous rows into a single 2D rectangular range in batchUpdateSystemColumns', async () => {
+    mockSheetsClient.spreadsheets.values.batchUpdate.mockResolvedValue({ data: {} });
+
+    const systemColumnIndices = {
+      [SYSTEM_COLUMNS.STATUS]: 2,
+      [SYSTEM_COLUMNS.BITRIX_ID]: 3,
+      [SYSTEM_COLUMNS.LAST_SYNC]: 4,
+      [SYSTEM_COLUMNS.ERROR]: 5,
+      [SYSTEM_COLUMNS.HASH]: 6,
+    };
+
+    const updates = [
+      { rowIndex: 2, status: SYNC_STATUS_VI.SYNCED, bitrixLeadId: '101', lastSyncTime: '2026-03-01T12:00:00Z', errorMessage: '', syncHash: 'h1' },
+      { rowIndex: 3, status: SYNC_STATUS_VI.SYNCED, bitrixLeadId: '102', lastSyncTime: '2026-03-01T12:00:00Z', errorMessage: '', syncHash: 'h2' },
+      { rowIndex: 4, status: SYNC_STATUS_VI.SYNCED, bitrixLeadId: '103', lastSyncTime: '2026-03-01T12:00:00Z', errorMessage: '', syncHash: 'h3' },
+      { rowIndex: 7, status: SYNC_STATUS_VI.SYNCED, bitrixLeadId: '104', lastSyncTime: '2026-03-01T12:00:00Z', errorMessage: '', syncHash: 'h4' },
+    ];
+
+    await service.batchUpdateSystemColumns(updates, systemColumnIndices);
+
+    expect(mockSheetsClient.spreadsheets.values.batchUpdate).toHaveBeenCalledWith({
+      spreadsheetId: 'test-sheet-id',
+      requestBody: {
+        valueInputOption: 'USER_ENTERED',
+        data: [
+          {
+            range: 'Leads!C2:G4',
+            values: [
+              [SYNC_STATUS_VI.SYNCED, '101', '2026-03-01T12:00:00Z', '', 'h1'],
+              [SYNC_STATUS_VI.SYNCED, '102', '2026-03-01T12:00:00Z', '', 'h2'],
+              [SYNC_STATUS_VI.SYNCED, '103', '2026-03-01T12:00:00Z', '', 'h3'],
+            ],
+          },
+          {
+            range: 'Leads!C7:G7',
+            values: [
+              [SYNC_STATUS_VI.SYNCED, '104', '2026-03-01T12:00:00Z', '', 'h4'],
+            ],
+          },
+        ],
+      },
+    });
+  });
+
+  it('should cache column hiding so subsequent readRows calls skip redundant batchUpdate', async () => {
+    mockSheetsClient.spreadsheets.values.get.mockResolvedValue({
+      data: {
+        values: [
+          ['Họ và tên', 'Email', SYSTEM_COLUMNS.STATUS, SYSTEM_COLUMNS.BITRIX_ID, SYSTEM_COLUMNS.LAST_SYNC, SYSTEM_COLUMNS.ERROR, SYSTEM_COLUMNS.HASH],
+          ['A', 'a@a.com', '', '', '', '', ''],
+        ],
+      },
+    });
+
+    // First call hides columns
+    await service.readRows();
+    expect(mockSheetsClient.spreadsheets.batchUpdate).toHaveBeenCalledTimes(1);
+
+    // Second call should skip hideSystemColumns because columnsHidden is true and no new columns added
+    await service.readRows();
+    expect(mockSheetsClient.spreadsheets.batchUpdate).toHaveBeenCalledTimes(1);
+  });
+
+  it('should ignore header row (index <= 1) and empty list in deleteRows', async () => {
+    await service.deleteRows([1, 0, -1]);
+    expect(mockSheetsClient.spreadsheets.batchUpdate).not.toHaveBeenCalled();
+
+    await service.deleteRows([]);
+    expect(mockSheetsClient.spreadsheets.batchUpdate).not.toHaveBeenCalled();
+  });
 });

@@ -16,6 +16,9 @@ coverage/
 config/credentials.json
 !config/credentials.json.example
 config/sync-history.json
+data/*.sqlite
+data/*.sqlite-journal
+data/*.db
 
 # ====================================================================
 # Logs

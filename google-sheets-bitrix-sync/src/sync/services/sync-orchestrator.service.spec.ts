@@ -30,6 +30,7 @@ describe('SyncOrchestratorService', () => {
       batchUpdateSystemColumns: vi.fn(),
       updateRowCells: vi.fn(),
       appendRows: vi.fn(),
+      deleteRows: vi.fn(),
     };
     mockBitrixLeadService = {
       addLead: vi.fn(),
@@ -54,6 +55,12 @@ describe('SyncOrchestratorService', () => {
     };
     mockMappingService = {
       loadMappingConfig: vi.fn(),
+      getMappingConfig: vi.fn().mockReturnValue({
+        fields: [
+          { sheetColumn: 'Email', bitrixField: 'EMAIL', type: 'multifield' },
+          { sheetColumn: 'Số điện thoại', bitrixField: 'PHONE', type: 'multifield' },
+        ],
+      }),
       transformRow: vi.fn(),
       transformBitrixToRow: vi.fn().mockReturnValue({}),
     };
@@ -607,6 +614,109 @@ describe('SyncOrchestratorService', () => {
     const res = await orchestrator.syncBitrixToSheets(777);
     expect(res.updated).toBe(0);
     expect(mockGoogleSheetsService.updateRowCells).not.toHaveBeenCalled();
+  });
+
+  it('TC15: should batch delete multiple deleted leads when multiple lead IDs are passed to syncBitrixToSheets', async () => {
+    mockGoogleSheetsService.readRows.mockResolvedValue({
+      rows: [
+        {
+          rowIndex: 2,
+          data: { 'Tiêu đề Lead': 'Lead 1' },
+          headers: ['Tiêu đề Lead'],
+          systemFields: {
+            status: SYNC_STATUS_VI.SYNCED,
+            bitrixLeadId: '777',
+            lastSyncTime: '08/09/2026 15:30:00',
+            syncHash: 'abc',
+          },
+        },
+        {
+          rowIndex: 3,
+          data: { 'Tiêu đề Lead': 'Lead 2' },
+          headers: ['Tiêu đề Lead'],
+          systemFields: {
+            status: SYNC_STATUS_VI.SYNCED,
+            bitrixLeadId: '888',
+            lastSyncTime: '08/09/2026 15:30:00',
+            syncHash: 'xyz',
+          },
+        },
+      ],
+      headers: ['Tiêu đề Lead'],
+      systemColumnIndices: {},
+    });
+
+    mockBitrixLeadService.getLead.mockResolvedValue(null);
+
+    const res = await orchestrator.syncBitrixToSheets([777, 888]);
+    expect(res.deleted).toBe(2);
+    expect(mockGoogleSheetsService.deleteRows).toHaveBeenCalledWith(
+      expect.arrayContaining([2, 3]),
+    );
+  });
+
+  it('TC16: should delete all duplicate rows of a customer when the lead is deleted in Bitrix', async () => {
+    mockGoogleSheetsService.readRows.mockResolvedValue({
+      rows: [
+        {
+          rowIndex: 2,
+          data: { 'Tiêu đề Lead': 'Lead An', Email: 'an@achau.vn', 'Số điện thoại': '0901234567' },
+          headers: ['Tiêu đề Lead', 'Email', 'Số điện thoại'],
+          systemFields: {
+            status: SYNC_STATUS_VI.SYNCED,
+            bitrixLeadId: '101',
+            lastSyncTime: '08/09/2026 15:30:00',
+            syncHash: 'abc',
+          },
+        },
+        {
+          rowIndex: 4,
+          data: { 'Tiêu đề Lead': 'Lead An Duplicate 1', Email: 'an@achau.vn', 'Số điện thoại': '0901234567' },
+          headers: ['Tiêu đề Lead', 'Email', 'Số điện thoại'],
+          systemFields: {
+            status: SYNC_STATUS_VI.SYNCED,
+            bitrixLeadId: '101',
+            lastSyncTime: '08/09/2026 15:30:00',
+            syncHash: 'abc',
+          },
+        },
+        {
+          rowIndex: 7,
+          data: { 'Tiêu đề Lead': 'Lead An Duplicate 2 Unsynced', Email: 'an@achau.vn', 'Số điện thoại': '84901234567' },
+          headers: ['Tiêu đề Lead', 'Email', 'Số điện thoại'],
+          systemFields: {
+            status: SYNC_STATUS_VI.PENDING,
+            bitrixLeadId: null,
+            lastSyncTime: null,
+            syncHash: null,
+          },
+        },
+        {
+          rowIndex: 9,
+          data: { 'Tiêu đề Lead': 'Other Customer', Email: 'other@company.vn', 'Số điện thoại': '0988888888' },
+          headers: ['Tiêu đề Lead', 'Email', 'Số điện thoại'],
+          systemFields: {
+            status: SYNC_STATUS_VI.SYNCED,
+            bitrixLeadId: '202',
+            lastSyncTime: '08/09/2026 15:30:00',
+            syncHash: 'xyz',
+          },
+        },
+      ],
+      headers: ['Tiêu đề Lead', 'Email', 'Số điện thoại'],
+      systemColumnIndices: {},
+    });
+
+    mockBitrixLeadService.getLead.mockResolvedValue(null); // Lead 101 deleted on Bitrix
+
+    const res = await orchestrator.syncBitrixToSheets(101);
+    expect(res.deleted).toBe(3);
+    // Rows 2, 4, 7 must be deleted; Row 9 (different customer Lead #202) must be preserved!
+    expect(mockGoogleSheetsService.deleteRows).toHaveBeenCalledWith(
+      expect.arrayContaining([2, 4, 7]),
+    );
+    const calledArgs = mockGoogleSheetsService.deleteRows.mock.calls[0][0];
+    expect(calledArgs).not.toContain(9);
   });
 });
 

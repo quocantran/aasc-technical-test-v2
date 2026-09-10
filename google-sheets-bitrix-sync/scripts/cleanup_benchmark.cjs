@@ -39,8 +39,12 @@ async function main() {
   console.log('===============================================================\n');
 
   // 1. Google Sheets Auth
+  const credentialsPath = process.env.GOOGLE_SHEETS_CREDENTIALS_PATH
+    ? path.resolve(__dirname, '..', process.env.GOOGLE_SHEETS_CREDENTIALS_PATH)
+    : path.resolve(__dirname, '../config/credentials.json');
+
   const auth = new google.auth.GoogleAuth({
-    keyFile: './config/credentials.json',
+    keyFile: credentialsPath,
     scopes: ['https://www.googleapis.com/auth/spreadsheets'],
   });
   const sheets = google.sheets({ version: 'v4', auth });
@@ -93,8 +97,8 @@ async function main() {
   // Find contiguous benchmark row blocks to delete from bottom up
   const benchmarkRowIndices = [];
   for (let i = 1; i < rows.length; i++) {
-    const rowTitle = String(rows[i][0] || '');
-    if (rowTitle.includes('BENCHMARK')) {
+    const rowContent = (rows[i] || []).join(' ');
+    if (rowContent.includes('BENCHMARK')) {
       benchmarkRowIndices.push(i);
     }
   }

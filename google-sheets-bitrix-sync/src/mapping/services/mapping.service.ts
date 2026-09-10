@@ -166,33 +166,71 @@ export class MappingService implements OnModuleInit {
         continue;
       }
 
-      // Resolves enumeration value mappings
+      // Resolves enumeration value mappings with case-insensitivity, trim, and direct CRM code validation
       if (field.type === 'enum') {
-        const mappedValue = field.valueMapping?.[stringValue] || field.defaultValue || stringValue;
+        let mappedValue: string | undefined;
+
+        if (field.valueMapping) {
+          if (field.valueMapping[stringValue]) {
+            mappedValue = field.valueMapping[stringValue];
+          } else {
+            const lowerString = stringValue.toLowerCase().trim();
+            for (const [mapKey, mapVal] of Object.entries(field.valueMapping)) {
+              if (mapKey.toLowerCase().trim() === lowerString) {
+                mappedValue = mapVal;
+                break;
+              }
+            }
+
+            if (!mappedValue) {
+              const upperString = stringValue.toUpperCase().trim();
+              const validCodes = Object.values(field.valueMapping);
+              if (validCodes.includes(upperString)) {
+                mappedValue = upperString;
+              }
+            }
+          }
+        }
+
+        // Invalid enum values return a concise error without silent fallback
+        if (!mappedValue) {
+          errors.push(
+            `Giá trị '${stringValue}' không hợp lệ cho cột '${field.sheetColumn}'. Vui lòng xem lại các giá trị hợp lệ trên Bitrix24.`,
+          );
+          continue;
+        }
+
         bitrixFields[field.bitrixField] = mappedValue;
         canonicalData[field.bitrixField] = mappedValue;
         continue;
       }
 
-      // Parses and cleans numeric values
+      // Parses and validates numeric values
       if (field.type === 'number') {
         const cleanedNumber = stringValue.replace(/,/g, '');
         const parsedNumber = parseFloat(cleanedNumber);
-        const finalNum = isNaN(parsedNumber) ? 0 : parsedNumber;
-        bitrixFields[field.bitrixField] = finalNum;
-        canonicalData[field.bitrixField] = finalNum;
+        if (isNaN(parsedNumber)) {
+          errors.push(`Giá trị '${stringValue}' không phải là số hợp lệ cho cột '${field.sheetColumn}'`);
+          continue;
+        }
+        bitrixFields[field.bitrixField] = parsedNumber;
+        canonicalData[field.bitrixField] = parsedNumber;
         continue;
       }
 
-      // Parses and formats date values to YYYY-MM-DD
+      // Parses, validates, and formats date values to YYYY-MM-DD
       if (field.type === 'date') {
         let formattedDate = stringValue;
         const dmyMatch = stringValue.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
         if (dmyMatch) {
-          const day = dmyMatch[1].padStart(2, '0');
-          const month = dmyMatch[2].padStart(2, '0');
-          const year = dmyMatch[3];
-          formattedDate = `${year}-${month}-${day}`;
+          const day = parseInt(dmyMatch[1], 10);
+          const month = parseInt(dmyMatch[2], 10);
+          const year = parseInt(dmyMatch[3], 10);
+          if (month < 1 || month > 12 || day < 1 || day > 31) {
+            errors.push(`Giá trị '${stringValue}' không phải là ngày hợp lệ cho cột '${field.sheetColumn}'`);
+            continue;
+          }
+          formattedDate = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
         }
         bitrixFields[field.bitrixField] = formattedDate;
         canonicalData[field.bitrixField] = formattedDate;
@@ -207,111 +245,36 @@ export class MappingService implements OnModuleInit {
       if (field.bitrixField === 'NAME') extractedName = stringValue;
     }
 
-    // Fallback auto-detection for standard contact and identity fields if not explicitly mapped
-    if (!extractedEmail) {
-      const emailCandidate =
-        normalizedRowValues['email'] ||
-        normalizedRowValues['e-mail'] ||
-        normalizedRowValues['thư điện tử'];
-      if (emailCandidate) {
-        const emailRes = normalizeEmail(String(emailCandidate).trim());
-        if (emailRes.isValid) {
-          extractedEmail = emailRes.normalized;
-          canonicalData.EMAIL = emailRes.normalized;
-          bitrixFields.EMAIL = [{ VALUE: emailRes.normalized, VALUE_TYPE: 'WORK' }];
-        }
-      }
-    }
-
-    if (!extractedPhone) {
-      const phoneCandidate =
-        normalizedRowValues['số điện thoại'] ||
-        normalizedRowValues['điện thoại'] ||
-        normalizedRowValues['sđt'] ||
-        normalizedRowValues['phone'] ||
-        normalizedRowValues['mobile'];
-      if (phoneCandidate) {
-        const phoneRes = normalizeVietnamesePhone(String(phoneCandidate).trim());
-        if (phoneRes.isValid) {
-          extractedPhone = phoneRes.normalized;
-          canonicalData.PHONE = phoneRes.normalized;
-          bitrixFields.PHONE = [{ VALUE: phoneRes.normalized, VALUE_TYPE: 'WORK' }];
-        }
-      }
-    }
-
-    if (!extractedName) {
-      const nameCandidate =
-        normalizedRowValues['tên khách hàng'] ||
-        normalizedRowValues['họ và tên'] ||
-        normalizedRowValues['họ tên'] ||
-        normalizedRowValues['tên'] ||
-        normalizedRowValues['name'];
-      if (nameCandidate) {
-        extractedName = String(nameCandidate).trim();
-        if (!bitrixFields.NAME) {
-          bitrixFields.NAME = extractedName;
-          canonicalData.NAME = extractedName;
-        }
-      }
-    }
-
-    if (!bitrixFields.COMPANY_TITLE) {
-      const companyCandidate = normalizedRowValues['công ty'] || normalizedRowValues['doanh nghiệp'];
-      if (companyCandidate) {
-        bitrixFields.COMPANY_TITLE = String(companyCandidate).trim();
-        canonicalData.COMPANY_TITLE = bitrixFields.COMPANY_TITLE;
-      }
-    }
-
-    if (!bitrixFields.STATUS_ID) {
-      const statusCandidate = normalizedRowValues['trạng thái'] || normalizedRowValues['status'];
-      if (statusCandidate) {
-        const rawStatus = String(statusCandidate).trim();
-        const statusMap: Record<string, string> = {
-          'mới': 'NEW',
-          'chưa xử lý': 'NEW',
-          'đang liên hệ': 'IN_PROCESS',
-          'đang xử lý': 'IN_PROCESS',
-          'đã xử lý': 'PROCESSED',
-          'hoàn thành': 'CONVERTED',
-          'không tiềm năng': 'JUNK',
-        };
-        const mapped = statusMap[rawStatus.toLowerCase()] || rawStatus;
-        bitrixFields.STATUS_ID = mapped;
-        canonicalData.STATUS_ID = mapped;
-      }
-    }
-
-    if (!bitrixFields.ASSIGNED_BY_ID) {
-      const assignedCandidate = normalizedRowValues['người phụ trách'] || normalizedRowValues['assigned by'] || normalizedRowValues['phụ trách'];
-      if (assignedCandidate) {
-        const num = parseInt(String(assignedCandidate).trim(), 10);
-        if (!isNaN(num)) {
-          bitrixFields.ASSIGNED_BY_ID = num;
-          canonicalData.ASSIGNED_BY_ID = num;
-        }
-      }
-    }
-
-    // Auto-generates TITLE if missing from available row details
+    // Generates fallback TITLE for Bitrix24 if TITLE is not explicitly mapped in mapping config
     if (!bitrixFields.TITLE) {
-      const fallbackTitle =
-        extractedTitle ||
-        extractedName ||
-        rowValues['Họ và tên'] ||
-        rowValues['Tên khách hàng'] ||
-        rowValues['Công ty'] ||
-        (extractedPhone ? `Lead ${extractedPhone}` : '') ||
-        (extractedEmail ? `Lead ${extractedEmail}` : '') ||
-        'Khách hàng tiềm năng';
+      let fallbackTitle = extractedTitle;
+      if (!fallbackTitle) {
+        const namePart = extractedName || '';
+        const companyPart = bitrixFields.COMPANY_TITLE || '';
+        const contactPart = extractedEmail || extractedPhone || '';
+
+        if (namePart && contactPart) {
+          fallbackTitle = `${namePart} - ${contactPart}`;
+        } else if (namePart && companyPart) {
+          fallbackTitle = `${namePart} - ${companyPart}`;
+        } else if (namePart) {
+          fallbackTitle = namePart;
+        } else if (companyPart) {
+          fallbackTitle = companyPart;
+        } else if (extractedPhone) {
+          fallbackTitle = `Lead ${extractedPhone}`;
+        } else if (extractedEmail) {
+          fallbackTitle = `Lead ${extractedEmail}`;
+        } else {
+          fallbackTitle = 'Khách hàng tiềm năng';
+        }
+      }
       bitrixFields.TITLE = fallbackTitle;
-      canonicalData.TITLE = fallbackTitle;
       extractedTitle = fallbackTitle;
     }
 
-    // Ensures at least one communication channel or identity exists for lead contact
-    if (!extractedEmail && !extractedPhone && !extractedName && errors.length === 0) {
+    // Ensures at least one communication channel (Email or Phone) exists for lead contact
+    if (!extractedEmail && !extractedPhone && errors.length === 0) {
       errors.push(ERROR_MESSAGES_VI.MISSING_CONTACT_INFO);
     }
 
@@ -353,6 +316,21 @@ export class MappingService implements OnModuleInit {
           }
         }
         rowData[field.sheetColumn] = matchedKey || String(rawBitrixValue || '');
+        continue;
+      }
+
+      if (field.type === 'number' || field.bitrixField === 'OPPORTUNITY') {
+        if (rawBitrixValue !== undefined && rawBitrixValue !== null && String(rawBitrixValue).trim() !== '') {
+          const num = Number(rawBitrixValue);
+          if (!isNaN(num)) {
+            // Removes trailing .00 for integer values (e.g. 50000000 instead of 50000000.00)
+            rowData[field.sheetColumn] = Number.isInteger(num) ? String(num) : String(parseFloat(num.toFixed(2)));
+          } else {
+            rowData[field.sheetColumn] = String(rawBitrixValue);
+          }
+        } else if (field.defaultValue !== undefined) {
+          rowData[field.sheetColumn] = String(field.defaultValue);
+        }
         continue;
       }
 

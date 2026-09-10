@@ -4,6 +4,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import configuration from './config/configuration.js';
 import { envValidationSchema } from './config/validation.schema.js';
 import { LoggerModule } from './common/logger/logger.module.js';
+import { DatabaseModule } from './databases/database.module.js';
 import { HealthModule } from './health/health.module.js';
 import { SyncModule } from './sync/sync.module.js';
 import { AdminModule } from './admin/admin.module.js';
@@ -18,6 +19,7 @@ import { AdminModule } from './admin/admin.module.js';
     }),
     ScheduleModule.forRoot(),
     LoggerModule,
+    DatabaseModule,
     HealthModule,
     SyncModule,
     AdminModule,

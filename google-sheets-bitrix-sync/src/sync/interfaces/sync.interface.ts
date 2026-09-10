@@ -11,11 +11,13 @@ export interface SyncExecutionResult {
   totalRows: number;
   created: number;
   updated: number;
+  deleted?: number;
   skipped: number;
   failed: number;
   durationMs: number;
   timestamp?: string;
   direction?: string;
+  syncedLeadIds?: (string | number)[];
 }
 
 // Internal representation of a partitioned row awaiting sync execution
@@ -35,7 +37,7 @@ export interface CandidateRow {
 // Segregated interface for sync history management and persistence (ISP)
 export interface ISyncHistoryService {
   record(result: SyncExecutionResult): void;
-  getRecentLogs(): SyncExecutionResult[];
+  getRecentLogs(limit?: number, offset?: number): SyncExecutionResult[];
   getLastResult(): SyncExecutionResult | null;
 }
 
@@ -56,5 +58,5 @@ export interface IForwardSyncService {
 
 // Segregated interface for reverse sync pipeline execution (ISP)
 export interface IReverseSyncService {
-  execute(leadId?: number | string): Promise<SyncExecutionResult>;
+  execute(leadId?: number | string | (number | string)[]): Promise<SyncExecutionResult>;
 }

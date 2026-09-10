@@ -94,9 +94,27 @@ describe('BitrixService', () => {
     });
   });
 
-  it('should return empty result if batch command list is empty', async () => {
-    const response = await service.executeBatch({});
-    expect(response.result).toEqual({});
-    expect(response.result_error).toEqual({});
+  it('should proactively refresh token and retry call on expired_token error', async () => {
+    mockWebhookStrategy.refreshToken = vi.fn().mockResolvedValue(true);
+
+    const mockPost = vi
+      .fn()
+      .mockResolvedValueOnce({
+        data: {
+          error: 'expired_token',
+          error_description: 'The access token provided has expired',
+        },
+      })
+      .mockResolvedValueOnce({
+        data: { result: 100 },
+      });
+
+    (service as any).httpClient.post = mockPost;
+
+    const result = await service.callMethod('crm.lead.get', { id: 1 });
+
+    expect(result).toBe(100);
+    expect(mockWebhookStrategy.refreshToken).toHaveBeenCalledTimes(1);
+    expect(mockPost).toHaveBeenCalledTimes(2);
   });
 });

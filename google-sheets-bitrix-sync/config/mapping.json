@@ -1,11 +1,6 @@
 {
   "fields": [
     {
-      "sheetColumn": "Tiêu đề Lead",
-      "bitrixField": "TITLE",
-      "type": "string"
-    },
-    {
       "sheetColumn": "Tên khách hàng",
       "bitrixField": "NAME",
       "type": "string"

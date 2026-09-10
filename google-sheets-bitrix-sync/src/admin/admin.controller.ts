@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Header, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Get, Post, Body, Header, HttpCode, HttpStatus, Query } from '@nestjs/common';
 import fs from 'fs';
 import { join } from 'path';
 import { SyncOrchestratorService } from '../sync/services/sync-orchestrator.service.js';
@@ -48,12 +48,13 @@ export class AdminController {
     };
   }
 
-  // Returns execution logs and historical sync statistics
+  // Returns execution logs and historical sync statistics (defaults to most recent 20 runs)
   @Get('api/sync/logs')
-  getLogs() {
+  getLogs(@Query('limit') limit?: string) {
+    const take = limit ? Math.min(Math.max(parseInt(limit, 10) || 20, 1), 100) : 20;
     return {
       status: 'success',
-      data: this.syncOrchestrator.getRecentLogs(),
+      data: this.syncOrchestrator.getRecentLogs(take),
     };
   }
 

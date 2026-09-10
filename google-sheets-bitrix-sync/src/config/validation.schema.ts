@@ -9,16 +9,29 @@ export const envValidationSchema = Joi.object({
   LOG_LEVEL: Joi.string()
     .valid('trace', 'debug', 'info', 'warn', 'error', 'fatal')
     .default('info'),
+  DATABASE_PATH: Joi.string().default('data/database.sqlite'),
 
-  BITRIX_WEBHOOK_URL: Joi.string().uri().required(),
+  BITRIX_AUTH_TYPE: Joi.string().valid('WEBHOOK', 'OAUTH2').default('WEBHOOK'),
+  BITRIX_WEBHOOK_URL: Joi.string().uri().optional().allow(''),
   BITRIX_RATE_LIMIT_RPS: Joi.number().default(2),
   BITRIX_MAX_RETRIES: Joi.number().default(3),
+  BITRIX_INBOUND_WEBHOOK_SECRET: Joi.string().optional().allow(''),
 
+  BITRIX24_CLIENT_ID: Joi.string().optional().allow(''),
+  BITRIX24_CLIENT_SECRET: Joi.string().optional().allow(''),
+  BITRIX24_DEFAULT_DOMAIN: Joi.string().optional().allow(''),
+  BITRIX24_OAUTH_URL: Joi.string().optional().allow(''),
+  BITRIX24_API_TIMEOUT: Joi.number().optional(),
+
+  GOOGLE_AUTH_TYPE: Joi.string().valid('SERVICE_ACCOUNT', 'OAUTH2').default('SERVICE_ACCOUNT'),
   GOOGLE_SHEET_ID: Joi.string().required(),
   GOOGLE_SHEET_NAME: Joi.string().default('Leads'),
-  GOOGLE_SHEETS_CREDENTIALS_PATH: Joi.string().optional(),
-  GOOGLE_SERVICE_ACCOUNT_EMAIL: Joi.string().email().optional(),
-  GOOGLE_PRIVATE_KEY: Joi.string().optional(),
+  GOOGLE_SHEETS_CREDENTIALS_PATH: Joi.string().optional().allow(''),
+  GOOGLE_SERVICE_ACCOUNT_EMAIL: Joi.string().email().optional().allow(''),
+
+  GOOGLE_OAUTH_CLIENT_ID: Joi.string().optional().allow(''),
+  GOOGLE_OAUTH_CLIENT_SECRET: Joi.string().optional().allow(''),
+  GOOGLE_OAUTH_REDIRECT_URI: Joi.string().optional().allow(''),
 
   SYNC_DIRECTION: Joi.string()
     .valid('ONE_WAY', 'TWO_WAY')
@@ -27,7 +40,4 @@ export const envValidationSchema = Joi.object({
   SYNC_BATCH_SIZE: Joi.number().default(50),
   SYNC_MAPPING_PATH: Joi.string().default('./config/mapping.json'),
   SYNC_MUTEX_TIMEOUT_MS: Joi.number().default(300000),
-
-  BITRIX_INBOUND_WEBHOOK_SECRET: Joi.string().optional(),
-
 }).unknown(true);

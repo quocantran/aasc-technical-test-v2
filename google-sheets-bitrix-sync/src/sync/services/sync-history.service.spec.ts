@@ -32,7 +32,7 @@ describe('SyncHistoryService', () => {
     expect(service.getRecentLogs()[0]).toEqual(result);
   });
 
-  it('should replace previous result with latest run', () => {
+  it('should store multiple execution logs in history with latest run first', () => {
     const res1: SyncExecutionResult = {
       totalRows: 5,
       created: 2,
@@ -54,6 +54,8 @@ describe('SyncHistoryService', () => {
     service.record(res2);
 
     expect(service.getLastResult()).toEqual(res2);
-    expect(service.getRecentLogs()).toHaveLength(1);
+    expect(service.getRecentLogs()).toHaveLength(2);
+    expect(service.getRecentLogs()[0]).toEqual(res2);
+    expect(service.getRecentLogs()[1]).toEqual(res1);
   });
 });

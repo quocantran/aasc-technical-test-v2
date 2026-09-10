@@ -111,6 +111,23 @@ describe('WebhookController', () => {
     expect(mockSyncOrchestrator.syncBitrixToSheets).toHaveBeenCalledWith('45');
   });
 
+  it('should ignore self-echo webhook if lead was recently synced by this system', async () => {
+    mockSyncOrchestrator.isLeadRecentlySynced = vi.fn().mockReturnValue(true);
+
+    const payload = {
+      event: 'ONCRMLEADADD',
+      data: { FIELDS: { ID: '1193' } },
+      auth: { application_token: 'valid_secret' },
+    };
+
+    const response = await controller.handleBitrixWebhook(payload);
+
+    expect(response.status).toBe('ignored');
+    expect(response.reason).toBe('self_echo');
+    expect(mockSyncOrchestrator.runSync).not.toHaveBeenCalled();
+    expect(mockSyncOrchestrator.syncBitrixToSheets).not.toHaveBeenCalled();
+  });
+
   it('should reject webhook when token is invalid', async () => {
     const payload = {
       event: 'ONCRMLEADADD',

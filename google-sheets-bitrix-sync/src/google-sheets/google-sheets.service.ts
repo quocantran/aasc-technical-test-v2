@@ -1,8 +1,9 @@
-import { Injectable, Optional } from '@nestjs/common';
+import { Injectable, Inject, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { sheets_v4 } from 'googleapis';
 import { AppLogger } from '../common/logger/app-logger.service.js';
-import { ServiceAccountStrategy } from './strategies/service-account.strategy.js';
+import { GOOGLE_SHEETS_AUTH_STRATEGY } from './interfaces/google-sheets-auth.interface.js';
+import type { IGoogleSheetsAuthStrategy } from './interfaces/google-sheets-auth.interface.js';
 import { RetryService } from '../bitrix/services/retry.service.js';
 import { GOOGLE_SHEETS_CONSTANTS } from '../common/constants/google-sheets.constants.js';
 import {
@@ -27,11 +28,14 @@ export class GoogleSheetsService {
   private readonly sheetId: string;
   private readonly sheetName: string;
   private cachedRowCount: number | null = null;
+  private cachedNumericSheetId: number | null = null;
   private lastRowCountFetch: number = 0;
+  private columnsHidden: boolean = false;
 
   constructor(
     private readonly configService: ConfigService,
-    private readonly authStrategy: ServiceAccountStrategy,
+    @Inject(GOOGLE_SHEETS_AUTH_STRATEGY)
+    private readonly authStrategy: IGoogleSheetsAuthStrategy,
     private readonly logger: AppLogger,
     @Optional() private readonly retryService?: RetryService,
   ) {
@@ -50,7 +54,7 @@ export class GoogleSheetsService {
   // Lightweight row count with in-memory caching (TTL: 15s) for dashboard without console log spam
   async getRowCount(): Promise<number> {
     const now = Date.now();
-    if (this.cachedRowCount !== null && now - this.lastRowCountFetch < 15000) {
+    if (this.cachedRowCount !== null && now - this.lastRowCountFetch < GOOGLE_SHEETS_CONSTANTS.ROW_COUNT_CACHE_TTL_MS) {
       return this.cachedRowCount;
     }
 
@@ -115,10 +119,13 @@ export class GoogleSheetsService {
     }
 
     const headers: string[] = (rawRows[0] || []).map((h) => String(h || '').trim());
-    const systemColumnIndices = await this.ensureSystemColumns(sheets, headers);
+    const { indices: systemColumnIndices, addedNewColumns } = await this.ensureSystemColumns(sheets, headers);
 
-    // Attempts to hide system columns (e.g. Lead ID, Hash) as specified in the test requirements
-    await this.hideSystemColumns(sheets, systemColumnIndices);
+    // Attempts to hide system columns (e.g. Lead ID, Hash) once or if new system columns were added
+    if (!this.columnsHidden || addedNewColumns) {
+      await this.hideSystemColumns(sheets, systemColumnIndices);
+      this.columnsHidden = true;
+    }
 
     const rows: SheetRow[] = [];
     for (let i = 1; i < rawRows.length; i++) {
@@ -186,23 +193,47 @@ export class GoogleSheetsService {
       errorCol === statusCol + 3 &&
       hashCol === statusCol + 4;
 
-    for (const update of updates) {
-      if (areConsecutive) {
-        const startLetter = indexToA1Column(statusCol);
-        const endLetter = indexToA1Column(hashCol);
+    if (areConsecutive) {
+      const startLetter = indexToA1Column(statusCol);
+      const endLetter = indexToA1Column(hashCol);
+
+      // Sort updates by rowIndex ascending to group contiguous rows into single 2D rectangular blocks
+      const sortedUpdates = [...updates].sort((a, b) => a.rowIndex - b.rowIndex);
+
+      let chunkStartIdx = 0;
+      while (chunkStartIdx < sortedUpdates.length) {
+        let chunkEndIdx = chunkStartIdx;
+        while (
+          chunkEndIdx + 1 < sortedUpdates.length &&
+          sortedUpdates[chunkEndIdx + 1].rowIndex === sortedUpdates[chunkEndIdx].rowIndex + 1
+        ) {
+          chunkEndIdx++;
+        }
+
+        const startRow = sortedUpdates[chunkStartIdx].rowIndex;
+        const endRow = sortedUpdates[chunkEndIdx].rowIndex;
+        const blockValues: any[][] = [];
+
+        for (let i = chunkStartIdx; i <= chunkEndIdx; i++) {
+          const u = sortedUpdates[i];
+          blockValues.push([
+            u.status ?? '',
+            u.bitrixLeadId ?? '',
+            u.lastSyncTime ?? '',
+            u.errorMessage ?? '',
+            u.syncHash ?? '',
+          ]);
+        }
+
         data.push({
-          range: `${this.sheetName}!${startLetter}${update.rowIndex}:${endLetter}${update.rowIndex}`,
-          values: [
-            [
-              update.status ?? '',
-              update.bitrixLeadId ?? '',
-              update.lastSyncTime ?? '',
-              update.errorMessage ?? '',
-              update.syncHash ?? '',
-            ],
-          ],
+          range: `${this.sheetName}!${startLetter}${startRow}:${endLetter}${endRow}`,
+          values: blockValues,
         });
-      } else {
+
+        chunkStartIdx = chunkEndIdx + 1;
+      }
+    } else {
+      for (const update of updates) {
         const addCell = (colIdx: number | undefined, val: any) => {
           if (colIdx !== undefined) {
             const letter = indexToA1Column(colIdx);
@@ -302,11 +333,94 @@ export class GoogleSheetsService {
     );
   }
 
+  // Retrieves and caches numeric sheet ID (tab GID)
+  async getNumericSheetId(): Promise<number> {
+    if (this.cachedNumericSheetId !== null) {
+      return this.cachedNumericSheetId;
+    }
+    const sheets = await this.authStrategy.getSheetsClient();
+    const spreadsheetInfo = await this.callWithRetry(
+      () =>
+        sheets.spreadsheets.get({
+          spreadsheetId: this.sheetId,
+          fields: 'sheets.properties',
+        }),
+      'GoogleSheets:getSpreadsheetInfo',
+    );
+
+    const targetSheet = spreadsheetInfo.data.sheets?.find(
+      (s) => s.properties?.title === this.sheetName,
+    ) || spreadsheetInfo.data.sheets?.[0];
+
+    this.cachedNumericSheetId = targetSheet?.properties?.sheetId ?? 0;
+    return this.cachedNumericSheetId;
+  }
+
+  // Deletes multiple rows in a single batchUpdate API call from bottom to top to prevent index shifting
+  async deleteRows(rowIndices: number[]): Promise<void> {
+    const validIndices = Array.from(new Set(rowIndices))
+      .filter((idx) => typeof idx === 'number' && idx > 1)
+      .sort((a, b) => a - b);
+
+    if (validIndices.length === 0) return;
+
+    const numericSheetId = await this.getNumericSheetId();
+    const sheets = await this.authStrategy.getSheetsClient();
+
+    // Group contiguous 0-indexed rows into ranges [startIndex, endIndex)
+    const ranges: Array<{ startIndex: number; endIndex: number }> = [];
+    let currentStart = validIndices[0] - 1;
+    let currentEnd = validIndices[0];
+
+    for (let i = 1; i < validIndices.length; i++) {
+      const next0Idx = validIndices[i] - 1;
+      if (next0Idx === currentEnd) {
+        currentEnd = next0Idx + 1;
+      } else {
+        ranges.push({ startIndex: currentStart, endIndex: currentEnd });
+        currentStart = next0Idx;
+        currentEnd = next0Idx + 1;
+      }
+    }
+    ranges.push({ startIndex: currentStart, endIndex: currentEnd });
+
+    // CRITICAL: Sort descending by startIndex so that deleting rows near the bottom does not shift indices of rows above
+    ranges.sort((a, b) => b.startIndex - a.startIndex);
+
+    const requests: sheets_v4.Schema$Request[] = ranges.map((range) => ({
+      deleteDimension: {
+        range: {
+          sheetId: numericSheetId,
+          dimension: 'ROWS',
+          startIndex: range.startIndex,
+          endIndex: range.endIndex,
+        },
+      },
+    }));
+
+    this.logger.log(
+      `Batch deleting ${validIndices.length} row(s) across ${ranges.length} range(s) from Google Sheet: ${this.sheetName}`,
+      'GoogleSheetsService',
+    );
+
+    await this.callWithRetry(
+      () =>
+        sheets.spreadsheets.batchUpdate({
+          spreadsheetId: this.sheetId,
+          requestBody: { requests },
+        }),
+      'GoogleSheets:deleteRows',
+    );
+
+    // Invalidate cached row count
+    this.cachedRowCount = null;
+  }
+
   // Appends missing system columns using Vietnamese header names and records their column index
   private async ensureSystemColumns(
     sheets: sheets_v4.Sheets,
     headers: string[],
-  ): Promise<Record<string, number>> {
+  ): Promise<{ indices: Record<string, number>; addedNewColumns: boolean }> {
     const indices: Record<string, number> = {};
     const missingKeys: Array<keyof typeof SYSTEM_COLUMNS> = [];
     const missingHeaderNames: string[] = [];
@@ -364,34 +478,21 @@ export class GoogleSheetsService {
       });
     }
 
-    return indices;
+    return { indices, addedNewColumns: missingHeaderNames.length > 0 };
   }
 
-  // Hides Lead ID and Hash columns in Google Sheets UI using updateDimensionProperties
+  // Hides Lead ID and Hash columns in Google Sheets UI, and sets text wrap for Error Message
   private async hideSystemColumns(
     sheets: sheets_v4.Sheets,
     systemColumnIndices: Record<string, number>,
   ): Promise<void> {
     try {
-      // Find internal numeric sheetId (tab ID)
-      const spreadsheetInfo = await this.callWithRetry(
-        () =>
-          sheets.spreadsheets.get({
-            spreadsheetId: this.sheetId,
-            fields: 'sheets.properties',
-          }),
-        'GoogleSheets:getSpreadsheetInfo',
-      );
-
-      const targetSheet = spreadsheetInfo.data.sheets?.find(
-        (s) => s.properties?.title === this.sheetName,
-      ) || spreadsheetInfo.data.sheets?.[0];
-
-      const numericSheetId = targetSheet?.properties?.sheetId ?? 0;
+      const numericSheetId = await this.getNumericSheetId();
       const requests: sheets_v4.Schema$Request[] = [];
 
       const leadIdCol = systemColumnIndices[SYSTEM_COLUMNS.BITRIX_ID];
       const hashCol = systemColumnIndices[SYSTEM_COLUMNS.HASH];
+      const errorCol = systemColumnIndices[SYSTEM_COLUMNS.ERROR];
 
       const colsToHide = [leadIdCol, hashCol].filter((c) => c !== undefined) as number[];
 
@@ -408,6 +509,25 @@ export class GoogleSheetsService {
               hiddenByUser: true,
             },
             fields: 'hiddenByUser',
+          },
+        });
+      }
+
+      // Automatically wraps text in Error Message column so long details fit cleanly
+      if (errorCol !== undefined) {
+        requests.push({
+          repeatCell: {
+            range: {
+              sheetId: numericSheetId,
+              startColumnIndex: errorCol,
+              endColumnIndex: errorCol + 1,
+            },
+            cell: {
+              userEnteredFormat: {
+                wrapStrategy: 'WRAP',
+              },
+            },
+            fields: 'userEnteredFormat.wrapStrategy',
           },
         });
       }

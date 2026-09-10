@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { SyncHistoryEntity } from './entities/sync-history.entity.js';
 import { GoogleSheetsModule } from '../google-sheets/google-sheets.module.js';
 import { BitrixModule } from '../bitrix/bitrix.module.js';
 import { MappingModule } from '../mapping/mapping.module.js';
@@ -16,7 +18,12 @@ import { SyncCommand } from './commands/sync.command.js';
 
 // Module configuring synchronization pipeline services, controllers, cron, and CLI command
 @Module({
-  imports: [GoogleSheetsModule, BitrixModule, MappingModule],
+  imports: [
+    TypeOrmModule.forFeature([SyncHistoryEntity]),
+    GoogleSheetsModule,
+    BitrixModule,
+    MappingModule,
+  ],
   controllers: [SyncController, WebhookController],
   providers: [
     HashService,

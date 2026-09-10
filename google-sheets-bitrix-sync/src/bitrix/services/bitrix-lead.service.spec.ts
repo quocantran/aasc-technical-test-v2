@@ -87,7 +87,7 @@ describe('BitrixLeadService', () => {
     expect(defaultResult).toEqual(leadsList);
     expect(mockBitrixService.callMethod).toHaveBeenCalledWith(BITRIX_API_METHODS.LEAD_LIST, {
       filter: { STATUS_ID: 'NEW' },
-      select: ['ID', 'TITLE', 'NAME', 'EMAIL', 'PHONE', 'DATE_CREATE', 'DATE_MODIFY', 'STATUS_ID', 'COMPANY_TITLE', 'OPPORTUNITY', 'COMMENTS'],
+      select: ['*', 'UF_*', 'EMAIL', 'PHONE', 'WEB', 'IM'],
     });
 
     const customResult = await leadService.listLeads({ STATUS_ID: 'WON' }, ['ID', 'TITLE']);

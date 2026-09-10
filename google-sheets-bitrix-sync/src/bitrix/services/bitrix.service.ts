@@ -1,8 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios, { AxiosInstance } from 'axios';
 import { AppLogger } from '../../common/logger/app-logger.service.js';
-import { BitrixWebhookStrategy } from '../strategies/webhook.strategy.js';
+import { BITRIX_AUTH_STRATEGY } from '../interfaces/bitrix-auth.interface.js';
+import type { IBitrixAuthStrategy } from '../interfaces/bitrix-auth.interface.js';
 import { RetryService } from './retry.service.js';
 import { BitrixRateLimiterService } from './bitrix-rate-limiter.service.js';
 import { BITRIX_API_METHODS, BITRIX_CONSTANTS } from '../constants/bitrix-api.constants.js';
@@ -22,41 +23,72 @@ export class BitrixService {
 
   constructor(
     private readonly configService: ConfigService,
-    private readonly webhookStrategy: BitrixWebhookStrategy,
+    @Inject(BITRIX_AUTH_STRATEGY)
+    private readonly authStrategy: IBitrixAuthStrategy,
     private readonly retryService: RetryService,
     private readonly rateLimiter: BitrixRateLimiterService,
     private readonly logger: AppLogger,
   ) {
     this.maxRetries = this.configService.get<number>('bitrix.maxRetries') || 3;
     this.httpClient = axios.create({
-      timeout: 30000,
+      timeout: BITRIX_CONSTANTS.DEFAULT_TIMEOUT_MS,
     });
   }
 
-  // Executes a single Bitrix24 REST API method with rate limiting and exponential retry
-  async callMethod<T = any>(method: string, params: Record<string, any> = {}): Promise<T> {
-    const url = this.webhookStrategy.getEndpoint(method);
-    const headers = this.webhookStrategy.getHeaders();
+  // Executes a single Bitrix24 REST API method with rate limiting, exponential retry, and reactive token renewal
+  async callMethod<T = any>(method: string, params: Record<string, any> = {}, isRetry = false): Promise<T> {
+    const url = this.authStrategy.getEndpoint(method);
+    const headers = await this.authStrategy.getHeaders();
+    const body: Record<string, any> = { ...params };
+
+    if (typeof this.authStrategy.getAccessToken === 'function') {
+      try {
+        const token = await this.authStrategy.getAccessToken();
+        if (token && !body.auth) {
+          body.auth = token;
+        }
+      } catch (err: any) {
+        this.logger.debug(`Could not attach auth param: ${err.message}`, 'BitrixService');
+      }
+    }
 
     return this.rateLimiter.acquire(async () => {
-      return this.retryService.executeWithRetry(
-        async () => {
-          this.logger.debug(`Calling Bitrix24 method: ${method}`, 'BitrixService');
-          const response = await this.httpClient.post(url, params, { headers });
+      try {
+        return await this.retryService.executeWithRetry(
+          async () => {
+            this.logger.debug(`Calling Bitrix24 method: ${method}`, 'BitrixService');
+            const response = await this.httpClient.post(url, body, { headers });
 
-          // Intercepts Bitrix error envelope and converts to Error instance
-          if (response.data && response.data.error) {
-            const description = response.data.error_description || response.data.error;
-            throw new Error(`Bitrix24 Error [${response.data.error}]: ${description}`);
-          }
+            // Intercepts Bitrix error envelope and converts to Error instance
+            if (response.data && response.data.error) {
+              const description = response.data.error_description || response.data.error;
+              const err: any = new Error(`Bitrix24 Error [${response.data.error}]: ${description}`);
+              err.bitrixError = response.data.error;
+              throw err;
+            }
 
-          return response.data.result;
-        },
-        {
-          maxRetries: this.maxRetries,
-          operationName: `Bitrix:${method}`,
-        },
-      );
+            return response.data.result;
+          },
+          {
+            maxRetries: this.maxRetries,
+            operationName: `Bitrix:${method}`,
+          },
+        );
+      } catch (error: any) {
+        const isAuthError =
+          error.bitrixError === 'expired_token' ||
+          error.bitrixError === 'NO_AUTH_FOUND' ||
+          error.response?.status === 401;
+
+        // Reactive 401 renewal: proactively refresh token and retry operation once
+        if (isAuthError && !isRetry && typeof this.authStrategy.refreshToken === 'function') {
+          this.logger.warn(`Bitrix access token expired mid-request, renewing token and retrying ${method}...`, 'BitrixService');
+          await this.authStrategy.refreshToken();
+          return this.callMethod<T>(method, params, true);
+        }
+
+        throw error;
+      }
     });
   }
 

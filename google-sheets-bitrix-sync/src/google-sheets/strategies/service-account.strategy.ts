@@ -12,28 +12,18 @@ export class ServiceAccountStrategy implements IGoogleSheetsAuthStrategy {
 
   constructor(private readonly configService: ConfigService) {}
 
-  // Initializes and returns cached GoogleAuth or JWT client
+  // Initializes and returns cached GoogleAuth client
   async getAuthClient(): Promise<any> {
     if (this.authClient) {
       return this.authClient;
     }
 
     const credentialsPath = this.configService.get<string>('googleSheets.credentialsPath');
-    const serviceAccountEmail = this.configService.get<string>('googleSheets.serviceAccountEmail');
-    const privateKey = this.configService.get<string>('googleSheets.privateKey');
-
     const scopes = ['https://www.googleapis.com/auth/spreadsheets'];
 
-    // Prioritize credentials JSON file, fall back to inline credentials
     if (credentialsPath && fs.existsSync(credentialsPath)) {
       this.authClient = new google.auth.GoogleAuth({
         keyFile: credentialsPath,
-        scopes,
-      });
-    } else if (serviceAccountEmail && privateKey) {
-      this.authClient = new google.auth.JWT({
-        email: serviceAccountEmail,
-        key: privateKey,
         scopes,
       });
     } else {

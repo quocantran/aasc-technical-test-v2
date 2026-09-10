@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import qs from 'qs';
 import { BitrixService } from './bitrix.service.js';
 import { BITRIX_API_METHODS, BITRIX_CONSTANTS } from '../constants/bitrix-api.constants.js';
+import { BITRIX_LEAD_GROUPS } from '../../common/constants/sync.constants.js';
 import { AppLogger } from '../../common/logger/app-logger.service.js';
 
 // Options for lead creation and update operations
@@ -37,53 +38,53 @@ export interface LeadFieldMetadata {
   defaultValue?: any;
 }
 
-// Built-in standard lead fields catalog with user-friendly Vietnamese labels and category groupings
+// Built-in standard lead fields catalog with user-friendly labels and category groupings
 export const STANDARD_BITRIX_LEAD_FIELDS: LeadFieldMetadata[] = [
-  // 1. Thông tin chính
-  { field: 'TITLE', label: 'Tên Lead / Tiêu đề Lead', group: 'Thông tin chính', type: 'string', isRequired: true },
-  { field: 'NAME', label: 'Tên của khách', group: 'Thông tin cá nhân', type: 'string' },
-  { field: 'LAST_NAME', label: 'Họ của khách', group: 'Thông tin cá nhân', type: 'string' },
-  { field: 'SECOND_NAME', label: 'Tên đệm / Tên lót', group: 'Thông tin cá nhân', type: 'string' },
-  { field: 'HONORIFIC', label: 'Danh xưng / Lời chào', group: 'Thông tin cá nhân', type: 'string' },
-  { field: 'BIRTHDATE', label: 'Ngày sinh của khách', group: 'Thông tin cá nhân', type: 'date' },
+  // 1. Core lead information
+  { field: 'TITLE', label: 'Tên Lead / Tiêu đề Lead', group: BITRIX_LEAD_GROUPS.CORE, type: 'string', isRequired: true },
+  { field: 'NAME', label: 'Tên của khách', group: BITRIX_LEAD_GROUPS.PERSONAL, type: 'string' },
+  { field: 'LAST_NAME', label: 'Họ của khách', group: BITRIX_LEAD_GROUPS.PERSONAL, type: 'string' },
+  { field: 'SECOND_NAME', label: 'Tên đệm / Tên lót', group: BITRIX_LEAD_GROUPS.PERSONAL, type: 'string' },
+  { field: 'HONORIFIC', label: 'Danh xưng / Lời chào', group: BITRIX_LEAD_GROUPS.PERSONAL, type: 'string' },
+  { field: 'BIRTHDATE', label: 'Ngày sinh của khách', group: BITRIX_LEAD_GROUPS.PERSONAL, type: 'date' },
 
-  // 2. Kênh liên lạc (Multifield)
-  { field: 'PHONE', label: 'Số điện thoại', group: 'Thông tin liên hệ', type: 'multifield', valueType: 'WORK' },
-  { field: 'EMAIL', label: 'Địa chỉ Email', group: 'Thông tin liên hệ', type: 'multifield', valueType: 'WORK' },
-  { field: 'WEB', label: 'Website cá nhân / doanh nghiệp', group: 'Thông tin liên hệ', type: 'multifield', valueType: 'WORK' },
-  { field: 'IM', label: 'Tài khoản Chat (Zalo, Skype...)', group: 'Thông tin liên hệ', type: 'multifield', valueType: 'WORK' },
+  // 2. Communication channels (Multifield)
+  { field: 'PHONE', label: 'Số điện thoại', group: BITRIX_LEAD_GROUPS.CONTACT, type: 'multifield', valueType: 'WORK' },
+  { field: 'EMAIL', label: 'Địa chỉ Email', group: BITRIX_LEAD_GROUPS.CONTACT, type: 'multifield', valueType: 'WORK' },
+  { field: 'WEB', label: 'Website cá nhân / doanh nghiệp', group: BITRIX_LEAD_GROUPS.CONTACT, type: 'multifield', valueType: 'WORK' },
+  { field: 'IM', label: 'Tài khoản Chat (Zalo, Skype...)', group: BITRIX_LEAD_GROUPS.CONTACT, type: 'multifield', valueType: 'WORK' },
 
-  // 3. Doanh nghiệp & Vị trí công tác
-  { field: 'COMPANY_TITLE', label: 'Tên công ty / Doanh nghiệp', group: 'Doanh nghiệp & Công việc', type: 'string' },
-  { field: 'POST', label: 'Chức danh / Chức vụ', group: 'Doanh nghiệp & Công việc', type: 'string' },
+  // 3. Company and employment position
+  { field: 'COMPANY_TITLE', label: 'Tên công ty / Doanh nghiệp', group: BITRIX_LEAD_GROUPS.COMPANY, type: 'string' },
+  { field: 'POST', label: 'Chức danh / Chức vụ', group: BITRIX_LEAD_GROUPS.COMPANY, type: 'string' },
 
-  // 4. Bán hàng, Cơ hội & Trạng thái
-  { field: 'STATUS_ID', label: 'Trạng thái Lead', group: 'Bán hàng & Trạng thái', type: 'enum', defaultValue: 'NEW' },
-  { field: 'STATUS_DESCRIPTION', label: 'Diễn giải trạng thái', group: 'Bán hàng & Trạng thái', type: 'string' },
-  { field: 'OPPORTUNITY', label: 'Doanh số / Ngân sách kỳ vọng', group: 'Bán hàng & Trạng thái', type: 'number', defaultValue: 0 },
-  { field: 'CURRENCY_ID', label: 'Loại tiền tệ (VND, USD)', group: 'Bán hàng & Trạng thái', type: 'string', defaultValue: 'VND' },
-  { field: 'ASSIGNED_BY_ID', label: 'ID nhân viên phụ trách', group: 'Bán hàng & Trạng thái', type: 'number', defaultValue: 1 },
-  { field: 'OPENED', label: 'Công khai cho toàn bộ công ty (Y/N)', group: 'Bán hàng & Trạng thái', type: 'string', defaultValue: 'Y' },
+  // 4. Sales opportunity and lead status
+  { field: 'STATUS_ID', label: 'Trạng thái Lead', group: BITRIX_LEAD_GROUPS.SALES, type: 'enum', defaultValue: 'NEW' },
+  { field: 'STATUS_DESCRIPTION', label: 'Diễn giải trạng thái', group: BITRIX_LEAD_GROUPS.SALES, type: 'string' },
+  { field: 'OPPORTUNITY', label: 'Doanh số / Ngân sách kỳ vọng', group: BITRIX_LEAD_GROUPS.SALES, type: 'number', defaultValue: 0 },
+  { field: 'CURRENCY_ID', label: 'Loại tiền tệ (VND, USD)', group: BITRIX_LEAD_GROUPS.SALES, type: 'string', defaultValue: 'VND' },
+  { field: 'ASSIGNED_BY_ID', label: 'ID nhân viên phụ trách', group: BITRIX_LEAD_GROUPS.SALES, type: 'number', defaultValue: 1 },
+  { field: 'OPENED', label: 'Công khai cho toàn bộ công ty (Y/N)', group: BITRIX_LEAD_GROUPS.SALES, type: 'string', defaultValue: 'Y' },
 
-  // 5. Nguồn tiếp thị & Marketing (UTM)
-  { field: 'SOURCE_ID', label: 'Nguồn Lead (Website, Facebook...)', group: 'Nguồn & Tiếp thị', type: 'enum', defaultValue: 'OTHER' },
-  { field: 'SOURCE_DESCRIPTION', label: 'Diễn giải chi tiết nguồn', group: 'Nguồn & Tiếp thị', type: 'string' },
-  { field: 'UTM_SOURCE', label: 'Kênh tiếp thị (UTM Source)', group: 'Nguồn & Tiếp thị', type: 'string' },
-  { field: 'UTM_MEDIUM', label: 'Hình thức tiếp thị (UTM Medium)', group: 'Nguồn & Tiếp thị', type: 'string' },
-  { field: 'UTM_CAMPAIGN', label: 'Chiến dịch (UTM Campaign)', group: 'Nguồn & Tiếp thị', type: 'string' },
-  { field: 'UTM_CONTENT', label: 'Nội dung quảng cáo (UTM Content)', group: 'Nguồn & Tiếp thị', type: 'string' },
-  { field: 'UTM_TERM', label: 'Từ khóa tìm kiếm (UTM Term)', group: 'Nguồn & Tiếp thị', type: 'string' },
+  // 5. Marketing attribution and UTM parameters
+  { field: 'SOURCE_ID', label: 'Nguồn Lead (Website, Facebook...)', group: BITRIX_LEAD_GROUPS.MARKETING, type: 'enum', defaultValue: 'OTHER' },
+  { field: 'SOURCE_DESCRIPTION', label: 'Diễn giải chi tiết nguồn', group: BITRIX_LEAD_GROUPS.MARKETING, type: 'string' },
+  { field: 'UTM_SOURCE', label: 'Kênh tiếp thị (UTM Source)', group: BITRIX_LEAD_GROUPS.MARKETING, type: 'string' },
+  { field: 'UTM_MEDIUM', label: 'Hình thức tiếp thị (UTM Medium)', group: BITRIX_LEAD_GROUPS.MARKETING, type: 'string' },
+  { field: 'UTM_CAMPAIGN', label: 'Chiến dịch (UTM Campaign)', group: BITRIX_LEAD_GROUPS.MARKETING, type: 'string' },
+  { field: 'UTM_CONTENT', label: 'Nội dung quảng cáo (UTM Content)', group: BITRIX_LEAD_GROUPS.MARKETING, type: 'string' },
+  { field: 'UTM_TERM', label: 'Từ khóa tìm kiếm (UTM Term)', group: BITRIX_LEAD_GROUPS.MARKETING, type: 'string' },
 
-  // 6. Địa chỉ
-  { field: 'ADDRESS', label: 'Địa chỉ số nhà / tên đường', group: 'Địa chỉ & Vị trí', type: 'string' },
-  { field: 'ADDRESS_CITY', label: 'Quận / Huyện / Thành phố', group: 'Địa chỉ & Vị trí', type: 'string' },
-  { field: 'ADDRESS_REGION', label: 'Tỉnh / Thành phố trực thuộc', group: 'Địa chỉ & Vị trí', type: 'string' },
-  { field: 'ADDRESS_PROVINCE', label: 'Tỉnh / Vùng', group: 'Địa chỉ & Vị trí', type: 'string' },
-  { field: 'ADDRESS_POSTAL_CODE', label: 'Mã bưu điện (Zip/Postal Code)', group: 'Địa chỉ & Vị trí', type: 'string' },
-  { field: 'ADDRESS_COUNTRY', label: 'Quốc gia', group: 'Địa chỉ & Vị trí', type: 'string' },
+  // 6. Address and geographical location
+  { field: 'ADDRESS', label: 'Địa chỉ số nhà / tên đường', group: BITRIX_LEAD_GROUPS.ADDRESS, type: 'string' },
+  { field: 'ADDRESS_CITY', label: 'Quận / Huyện / Thành phố', group: BITRIX_LEAD_GROUPS.ADDRESS, type: 'string' },
+  { field: 'ADDRESS_REGION', label: 'Tỉnh / Thành phố trực thuộc', group: BITRIX_LEAD_GROUPS.ADDRESS, type: 'string' },
+  { field: 'ADDRESS_PROVINCE', label: 'Tỉnh / Vùng', group: BITRIX_LEAD_GROUPS.ADDRESS, type: 'string' },
+  { field: 'ADDRESS_POSTAL_CODE', label: 'Mã bưu điện (Zip/Postal Code)', group: BITRIX_LEAD_GROUPS.ADDRESS, type: 'string' },
+  { field: 'ADDRESS_COUNTRY', label: 'Quốc gia', group: BITRIX_LEAD_GROUPS.ADDRESS, type: 'string' },
 
-  // 7. Ghi chú & Khác
-  { field: 'COMMENTS', label: 'Ghi chú / Bình luận về Lead', group: 'Ghi chú & Khác', type: 'string' },
+  // 7. Notes and additional details
+  { field: 'COMMENTS', label: 'Ghi chú / Bình luận về Lead', group: BITRIX_LEAD_GROUPS.NOTES, type: 'string' },
 ];
 
 // Encapsulates Bitrix24 CRM Lead CRUD operations and deduplication queries
@@ -240,7 +241,7 @@ export class BitrixLeadService {
     this.logger.debug(`Listing leads from Bitrix24 with filter`, 'BitrixLeadService');
     const result = await this.bitrixService.callMethod<any[]>(BITRIX_API_METHODS.LEAD_LIST, {
       filter,
-      select: select ?? ['ID', 'TITLE', 'NAME', 'EMAIL', 'PHONE', 'DATE_CREATE', 'DATE_MODIFY', 'STATUS_ID', 'COMPANY_TITLE', 'OPPORTUNITY', 'COMMENTS'],
+      select: select ?? ['*', 'UF_*', 'EMAIL', 'PHONE', 'WEB', 'IM'],
     });
     return result || [];
   }
@@ -380,14 +381,14 @@ export class BitrixLeadService {
         else if (rawType.includes('date')) detectedType = 'date';
 
         const isCustom = key.startsWith('UF_CRM_');
-        // Exclude generic internal fields that would clutter the selector under 'Trường Bitrix24 khác'
+        // Exclude generic internal fields that would clutter the selector
         if (!isCustom) continue;
 
         const title = (meta as any)?.title || (meta as any)?.listLabel || key;
         resultList.push({
           field: key,
           label: `${title} [${key}]`,
-          group: 'Trường tùy biến (Custom Fields)',
+          group: BITRIX_LEAD_GROUPS.CUSTOM,
           type: detectedType,
           isRequired: Boolean((meta as any)?.isRequired),
         });
