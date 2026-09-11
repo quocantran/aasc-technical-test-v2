@@ -83,8 +83,7 @@ src/
 scripts/
 ├── system_test.cjs                         # Bộ kiểm thử hệ thống trực tiếp toàn diện 22 Test Cases (100% Pass)
 ├── live_benchmark.cjs                      # Benchmark hiệu năng thực tế với 150 records thật (có prompt xóa/giữ data)
-├── cleanup_benchmark.cjs                   # Tiện ích dọn dẹp dữ liệu benchmark trên Google Sheet và Bitrix24
-└── codebase_scanner.cjs                    # Tiện ích quét và kiểm tra comment / chất lượng mã nguồn
+└── cleanup_benchmark.cjs                   # Tiện ích dọn dẹp dữ liệu benchmark trên Google Sheet và Bitrix24
 ```
 
 ---
