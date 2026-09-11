@@ -207,9 +207,9 @@ export class MappingService implements OnModuleInit {
 
       // Parses and validates numeric values
       if (field.type === 'number') {
-        const cleanedNumber = stringValue.replace(/,/g, '');
-        const parsedNumber = parseFloat(cleanedNumber);
-        if (isNaN(parsedNumber)) {
+        const cleanedNumber = stringValue.replace(/,/g, '').trim();
+        const parsedNumber = Number(cleanedNumber);
+        if (!cleanedNumber || isNaN(parsedNumber) || !/^[+-]?\d+(\.\d+)?$/.test(cleanedNumber)) {
           errors.push(`Giá trị '${stringValue}' không phải là số hợp lệ cho cột '${field.sheetColumn}'`);
           continue;
         }
@@ -222,6 +222,7 @@ export class MappingService implements OnModuleInit {
       if (field.type === 'date') {
         let formattedDate = stringValue;
         const dmyMatch = stringValue.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+        const ymdMatch = stringValue.match(/^(\d{4})[/-](\d{1,2})[/-](\d{1,2})$/);
         if (dmyMatch) {
           const day = parseInt(dmyMatch[1], 10);
           const month = parseInt(dmyMatch[2], 10);
@@ -231,6 +232,18 @@ export class MappingService implements OnModuleInit {
             continue;
           }
           formattedDate = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        } else if (ymdMatch) {
+          const year = parseInt(ymdMatch[1], 10);
+          const month = parseInt(ymdMatch[2], 10);
+          const day = parseInt(ymdMatch[3], 10);
+          if (month < 1 || month > 12 || day < 1 || day > 31) {
+            errors.push(`Giá trị '${stringValue}' không phải là ngày hợp lệ cho cột '${field.sheetColumn}'`);
+            continue;
+          }
+          formattedDate = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        } else {
+          errors.push(`Giá trị '${stringValue}' không phải là ngày hợp lệ cho cột '${field.sheetColumn}'`);
+          continue;
         }
         bitrixFields[field.bitrixField] = formattedDate;
         canonicalData[field.bitrixField] = formattedDate;

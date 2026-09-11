@@ -1,0 +1,13 @@
+node_modules
+dist
+.env
+.env.*
+config/credentials.json
+config/sync-history.json
+data/
+coverage/
+.git
+.gitignore
+*.log
+npm-debug.log*
+.DS_Store

@@ -655,7 +655,7 @@ describe('SyncOrchestratorService', () => {
     );
   });
 
-  it('TC16: should delete all duplicate rows of a customer when the lead is deleted in Bitrix', async () => {
+  it('TC16: should only delete rows with matching bitrixLeadId when the lead is deleted in Bitrix and spare unsynced rows', async () => {
     mockGoogleSheetsService.readRows.mockResolvedValue({
       rows: [
         {
@@ -710,13 +710,56 @@ describe('SyncOrchestratorService', () => {
     mockBitrixLeadService.getLead.mockResolvedValue(null); // Lead 101 deleted on Bitrix
 
     const res = await orchestrator.syncBitrixToSheets(101);
-    expect(res.deleted).toBe(3);
-    // Rows 2, 4, 7 must be deleted; Row 9 (different customer Lead #202) must be preserved!
+    expect(res.deleted).toBe(2);
+    // Rows 2 and 4 must be deleted (they have bitrixLeadId: '101');
+    // Row 7 (unsynced row without leadId) and Row 9 (different customer Lead #202) must be preserved!
     expect(mockGoogleSheetsService.deleteRows).toHaveBeenCalledWith(
-      expect.arrayContaining([2, 4, 7]),
+      expect.arrayContaining([2, 4]),
     );
     const calledArgs = mockGoogleSheetsService.deleteRows.mock.calls[0][0];
+    expect(calledArgs).not.toContain(7);
     expect(calledArgs).not.toContain(9);
+  });
+
+  it('should handle markLeadAsRecentlySynced and isLeadRecentlySynced with invalid/empty values', () => {
+    orchestrator.markLeadAsRecentlySynced('');
+    orchestrator.markLeadAsRecentlySynced(null as any);
+    orchestrator.markLeadAsRecentlySynced(undefined as any);
+
+    expect(orchestrator.isLeadRecentlySynced('')).toBe(false);
+    expect(orchestrator.isLeadRecentlySynced(null as any)).toBe(false);
+    expect(orchestrator.isLeadRecentlySynced(undefined as any)).toBe(false);
+  });
+
+  it('should expire recently synced lead IDs when TTL passes', () => {
+    orchestrator.markLeadAsRecentlySynced('1234');
+    expect(orchestrator.isLeadRecentlySynced('1234')).toBe(true);
+
+    // Manipulate internal timestamp to simulate TTL expiration
+    (orchestrator as any).recentSyncedLeadIds.set('1234', Date.now() - 70000);
+    expect(orchestrator.isLeadRecentlySynced('1234')).toBe(false);
+  });
+
+  it('should retrieve last result from syncHistoryService', () => {
+    const mockRes = { totalRows: 1, created: 1, updated: 0, skipped: 0, failed: 0, durationMs: 10 };
+    (orchestrator as any).syncHistoryService.record(mockRes);
+    expect(orchestrator.getLastResult()).toEqual(mockRes);
+  });
+
+  it('should release lock and rethrow error when syncBitrixToSheets fails', async () => {
+    vi.spyOn((orchestrator as any).reverseSyncService, 'execute').mockRejectedValue(new Error('Reverse sync failure'));
+
+    await expect(orchestrator.syncBitrixToSheets()).rejects.toThrow('Reverse sync failure');
+    expect(lockService.isLocked()).toBe(false);
+  });
+
+  it('should skip syncBitrixToSheets if lock cannot be acquired within timeout', async () => {
+    lockService.acquire();
+    const res = await orchestrator.syncBitrixToSheets('999');
+
+    expect(res.isSkippedDueToLock).toBe(true);
+    expect((orchestrator as any).pendingReverseSyncIds.has('999')).toBe(true);
+    lockService.release();
   });
 });
 

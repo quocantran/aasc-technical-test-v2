@@ -200,6 +200,18 @@ describe('MappingService', () => {
     expect(result.errors.some((e) => e.includes('Ngân sách') && e.includes('số hợp lệ'))).toBe(true);
   });
 
+  it('should return error for partially numeric string like 131230abd in number field', () => {
+    const row = {
+      'Tiêu đề Lead': 'Lead Num Test',
+      'Số điện thoại': '0912345678',
+      'Ngân sách': '131230abd',
+    };
+
+    const result = mappingService.transformRow(row);
+    expect(result.success).toBe(false);
+    expect(result.errors.some((e) => e.includes('Ngân sách') && e.includes('số hợp lệ'))).toBe(true);
+  });
+
   it('should return error for out-of-range date in date field', () => {
     mappingService.loadMappingConfig({
       fields: [

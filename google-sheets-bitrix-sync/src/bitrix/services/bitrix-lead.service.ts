@@ -236,14 +236,36 @@ export class BitrixLeadService {
     }
   }
 
-  // Fetches lead list matching filter criteria
-  async listLeads(filter: Record<string, any>, select?: string[]): Promise<any[]> {
-    this.logger.debug(`Listing leads from Bitrix24 with filter`, 'BitrixLeadService');
+  // Fetches lead list matching filter criteria for a specific page
+  async listLeads(filter: Record<string, any>, select?: string[], start = 0): Promise<any[]> {
+    this.logger.debug(`Listing leads from Bitrix24 with filter (start: ${start})`, 'BitrixLeadService');
     const result = await this.bitrixService.callMethod<any[]>(BITRIX_API_METHODS.LEAD_LIST, {
       filter,
       select: select ?? ['*', 'UF_*', 'EMAIL', 'PHONE', 'WEB', 'IM'],
+      start,
     });
     return result || [];
+  }
+
+  // Fetches all leads across multiple pages (up to maxPages * 50 leads)
+  async listAllLeads(filter: Record<string, any>, select?: string[], maxPages = 20): Promise<any[]> {
+    this.logger.debug(`Listing all leads with pagination from Bitrix24`, 'BitrixLeadService');
+    const allLeads: any[] = [];
+    let start = 0;
+
+    for (let page = 0; page < maxPages; page++) {
+      const pageResult = await this.listLeads(filter, select, start);
+      if (!Array.isArray(pageResult) || pageResult.length === 0) {
+        break;
+      }
+      allLeads.push(...pageResult);
+      if (pageResult.length < BITRIX_CONSTANTS.MAX_BATCH_COMMANDS) {
+        break;
+      }
+      start += BITRIX_CONSTANTS.MAX_BATCH_COMMANDS;
+    }
+
+    return allLeads;
   }
 
   // Deletes a lead entity by ID

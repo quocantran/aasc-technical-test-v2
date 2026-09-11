@@ -137,4 +137,38 @@ describe('WebhookController', () => {
     await expect(controller.handleBitrixWebhook(payload)).rejects.toThrow(UnauthorizedException);
     expect(mockSyncOrchestrator.runSync).not.toHaveBeenCalled();
   });
+
+  it('should log error when async syncBitrixToSheets fails', async () => {
+    mockConfigService.get = vi.fn((key: string) => {
+      if (key === 'bitrix.inboundWebhookSecret') return 'valid_secret';
+      if (key === 'sync.direction') return 'TWO_WAY';
+      return null;
+    });
+    mockSyncOrchestrator.syncBitrixToSheets.mockRejectedValue(new Error('Async error'));
+
+    const payload = {
+      event: 'ONCRMLEADUPDATE',
+      data: { FIELDS: { ID: '100' } },
+      auth: { application_token: 'valid_secret' },
+    };
+
+    const response = await controller.handleBitrixWebhook(payload);
+    expect(response.status).toBe('accepted');
+    await new Promise((r) => setTimeout(r, 10));
+    expect(mockLogger.error).toHaveBeenCalled();
+  });
+
+  it('should log error when async runSync fails', async () => {
+    mockSyncOrchestrator.runSync.mockRejectedValue(new Error('Async runSync error'));
+
+    const payload = {
+      event: 'ONCRMDEALADD',
+      auth: { application_token: 'valid_secret' },
+    };
+
+    const response = await controller.handleBitrixWebhook(payload);
+    expect(response.status).toBe('accepted');
+    await new Promise((r) => setTimeout(r, 10));
+    expect(mockLogger.error).toHaveBeenCalled();
+  });
 });

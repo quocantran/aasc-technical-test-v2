@@ -8,10 +8,4 @@ export interface IBitrixAuthStrategy {
 
   // Returns authentication and content headers for the HTTP request
   getHeaders(): Record<string, string> | Promise<Record<string, string>>;
-
-  // Refreshes the active access token if expired
-  refreshToken?(): Promise<any>;
-
-  // Returns active access token string directly
-  getAccessToken?(): Promise<string>;
 }

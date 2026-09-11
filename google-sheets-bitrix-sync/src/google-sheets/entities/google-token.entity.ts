@@ -4,6 +4,7 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
+  Index,
 } from 'typeorm';
 
 // TypeORM entity storing Google OAuth tokens and expiration metadata in SQLite
@@ -18,7 +19,7 @@ export class GoogleTokenEntity {
   @Column({ type: 'text' })
   accessToken: string;
 
-  @Column({ type: 'text' })
+  @Column({ type: 'text', nullable: true })
   refreshToken: string;
 
   @Column({ type: 'integer', default: 3600 })
@@ -30,9 +31,11 @@ export class GoogleTokenEntity {
   @Column({ type: 'text', nullable: true })
   scope: string;
 
+  @Index()
   @CreateDateColumn()
   createdAt: Date;
 
+  @Index()
   @UpdateDateColumn()
   updatedAt: Date;
 }

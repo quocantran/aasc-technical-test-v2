@@ -361,4 +361,134 @@ describe('GoogleSheetsService', () => {
     await service.deleteRows([]);
     expect(mockSheetsClient.spreadsheets.batchUpdate).not.toHaveBeenCalled();
   });
+
+  it('should batch update rows cells and handle updateRowCells helper', async () => {
+    mockSheetsClient.spreadsheets.values.batchUpdate.mockResolvedValue({ data: {} });
+
+    // Empty updates array
+    await service.batchUpdateRowsCells([], ['Họ và tên', 'Email']);
+    expect(mockSheetsClient.spreadsheets.values.batchUpdate).not.toHaveBeenCalled();
+
+    // No matching headers
+    await service.batchUpdateRowsCells([{ rowIndex: 2, columnValues: { 'Không có': 'val' } }], ['Họ và tên']);
+    expect(mockSheetsClient.spreadsheets.values.batchUpdate).not.toHaveBeenCalled();
+
+    // Valid updates with null/undefined values
+    await service.batchUpdateRowsCells(
+      [
+        {
+          rowIndex: 2,
+          columnValues: { 'Họ và tên': 'Nguyễn Văn B', 'Email': null },
+        },
+      ],
+      ['Họ và tên', 'Email'],
+    );
+    expect(mockSheetsClient.spreadsheets.values.batchUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        spreadsheetId: 'test-sheet-id',
+        requestBody: {
+          valueInputOption: 'USER_ENTERED',
+          data: [
+            { range: 'Leads!A2', values: [['Nguyễn Văn B']] },
+            { range: 'Leads!B2', values: [['']] },
+          ],
+        },
+      }),
+    );
+
+    // updateRowCells delegation
+    await service.updateRowCells(3, { 'Họ và tên': 'Trần C' }, ['Họ và tên']);
+    expect(mockSheetsClient.spreadsheets.values.batchUpdate).toHaveBeenCalled();
+  });
+
+  it('should handle appendRows with valid and empty rows', async () => {
+    mockSheetsClient.spreadsheets.values.append = vi.fn().mockResolvedValue({ data: {} });
+
+    await service.appendRows([]);
+    await service.appendRows(null as any);
+    expect(mockSheetsClient.spreadsheets.values.append).not.toHaveBeenCalled();
+
+    await service.appendRows([['Nguyễn D', 'd@test.com']]);
+    expect(mockSheetsClient.spreadsheets.values.append).toHaveBeenCalledWith(
+      expect.objectContaining({
+        spreadsheetId: 'test-sheet-id',
+        range: 'Leads!A1',
+        valueInputOption: 'USER_ENTERED',
+        insertDataOption: 'INSERT_ROWS',
+        requestBody: {
+          values: [['Nguyễn D', 'd@test.com']],
+        },
+      }),
+    );
+  });
+
+  it('should cache numeric sheet ID and handle sheet title fallback', async () => {
+    // First call fetches sheet info
+    const id1 = await service.getNumericSheetId();
+    expect(id1).toBe(0);
+    expect(mockSheetsClient.spreadsheets.get).toHaveBeenCalledTimes(1);
+
+    // Second call returns cached sheetId without API call
+    const id2 = await service.getNumericSheetId();
+    expect(id2).toBe(0);
+    expect(mockSheetsClient.spreadsheets.get).toHaveBeenCalledTimes(1);
+  });
+
+  it('should fallback to first sheet if title does not match in getNumericSheetId', async () => {
+    const unMatchedService = new GoogleSheetsService(
+      {
+        get: vi.fn((k) => (k === 'googleSheets.sheetName' ? 'NonExistentTab' : 'sheet-id')),
+      } as any,
+      mockAuthStrategy,
+      mockLogger,
+    );
+
+    mockSheetsClient.spreadsheets.get.mockResolvedValue({
+      data: {
+        sheets: [{ properties: { sheetId: 999, title: 'DefaultTab' } }],
+      },
+    });
+
+    const sheetId = await unMatchedService.getNumericSheetId();
+    expect(sheetId).toBe(999);
+  });
+
+  it('should delete contiguous and non-contiguous rows in descending order', async () => {
+    mockSheetsClient.spreadsheets.batchUpdate.mockResolvedValue({ data: {} });
+
+    // Rows 2, 3 (contiguous) and 6 (non-contiguous)
+    await service.deleteRows([2, 3, 6]);
+
+    expect(mockSheetsClient.spreadsheets.batchUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        requestBody: {
+          requests: [
+            // Row 6 (0-indexed start 5, end 6)
+            { deleteDimension: { range: { sheetId: 0, dimension: 'ROWS', startIndex: 5, endIndex: 6 } } },
+            // Rows 2, 3 (0-indexed start 1, end 3)
+            { deleteDimension: { range: { sheetId: 0, dimension: 'ROWS', startIndex: 1, endIndex: 3 } } },
+          ],
+        },
+      }),
+    );
+  });
+
+  it('should return row count via getRowCount', async () => {
+    mockSheetsClient.spreadsheets.values.get.mockResolvedValue({
+      data: {
+        values: [
+          ['Họ và tên', SYSTEM_COLUMNS.STATUS, SYSTEM_COLUMNS.BITRIX_ID, SYSTEM_COLUMNS.LAST_SYNC, SYSTEM_COLUMNS.ERROR, SYSTEM_COLUMNS.HASH],
+          ['Row 1', '', '', '', '', ''],
+          ['Row 2', '', '', '', '', ''],
+        ],
+      },
+    });
+
+    const count = await service.getRowCount();
+    expect(count).toBe(2);
+
+    // Second call returns cached row count
+    const cachedCount = await service.getRowCount();
+    expect(cachedCount).toBe(2);
+  });
 });

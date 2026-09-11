@@ -65,6 +65,13 @@ describe('Application Endpoints (e2e)', () => {
     expect(Array.isArray(response.body.data)).toBe(true);
   });
 
+  it('/ (GET) should redirect to /admin', async () => {
+    await request(app.getHttpServer())
+      .get('/')
+      .expect(302)
+      .expect('Location', '/admin');
+  });
+
   it('/admin (GET) should serve the Web Management Dashboard HTML', async () => {
     const response = await request(app.getHttpServer())
       .get('/admin')

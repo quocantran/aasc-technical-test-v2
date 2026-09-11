@@ -610,7 +610,7 @@ async function main() {
       spreadsheetId: SPREADSHEET_ID,
       range: 'Leads!A1:ZZ50',
     });
-    const matchedRows = afterRows.filter((r) => String(r[col.email] || '').toLowerCase() === tc10Email.toLowerCase());
+    const matchedRows = (afterDedupRowsRes.data.values || []).filter((r) => String(r[col.email] || '').toLowerCase() === tc10Email.toLowerCase());
 
     assert(matchedRows.length === 1, `Chỉ được tồn tại duy nhất 1 dòng mang email ${tc10Email} (thực tế: ${matchedRows.length})`);
     assert(String(matchedRows[0][col.leadId]) === String(dupB24LeadId), `Dòng có sẵn phải được tự động gắn Lead ID = #${dupB24LeadId} (thực tế: ${matchedRows[0][col.leadId]})`);
@@ -622,27 +622,74 @@ async function main() {
   // TC11: ONCRMLEADDELETE webhook handling and sheet update
   console.log('--- TC11: XÓA LEAD TRÊN BITRIX -> BẮN WEBHOOK ONCRMLEADDELETE -> XÓA KHỎI SHEET ---');
   try {
-    console.log(`1. Xóa Lead #${newB24LeadId} trên Bitrix24...`);
+    console.log('1. Thêm 1 dòng phụ có cùng Email/SĐT với Lead nhưng CHƯA CÓ Lead ID để kiểm tra an toàn dữ liệu...');
+    const currentRowsRes = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: 'Leads!A1:ZZ50',
+    });
+    const nextRowIdx = (currentRowsRes.data.values || []).length + 1;
+    const sameEmailRow = new Array(headers.length).fill('');
+    if (col.name >= 0) sameEmailRow[col.name] = 'Hoàng Văn Đồng Nghiệp';
+    if (col.company >= 0) sameEmailRow[col.company] = 'Bitrix Vietnam Corp';
+    if (col.email >= 0) sameEmailRow[col.email] = 'hoangvan.b24@bitrixvn.com';
+    if (col.status >= 0) sameEmailRow[col.status] = 'Mới';
+    const endLetter = indexToA1(headers.length - 1);
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `Leads!A${nextRowIdx}:${endLetter}${nextRowIdx}`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: { values: [sameEmailRow] },
+    });
+
+    console.log(`2. Xóa Lead #${newB24LeadId} trên Bitrix24...`);
     await callBitrix('crm.lead.delete', { id: newB24LeadId });
 
-    console.log('2. Bắn Webhook ONCRMLEADDELETE...');
+    console.log('3. Bắn Webhook ONCRMLEADDELETE...');
     const delHookRes = await sendBitrixWebhook('ONCRMLEADDELETE', newB24LeadId);
     assert(delHookRes.status === 200 || delHookRes.status === 201, 'Webhook xóa phải được chấp nhận');
 
-    console.log('3. Đợi 3.5 giây cho luồng sync xử lý xóa dòng trên Sheet...');
+    console.log('4. Đợi 3.5 giây cho luồng sync xử lý xóa dòng trên Sheet...');
     await new Promise((r) => setTimeout(r, 3500));
 
-    console.log('4. Kiểm tra dòng của Lead này trên Google Sheet...');
+    console.log('5. Kiểm tra dòng của Lead này trên Google Sheet...');
     const sheetDataAfterDel = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
       range: 'Leads!A1:ZZ50',
     });
-    const targetRow = (sheetDataAfterDel.data.values || []).find((r) => String(r[col.leadId]) === String(newB24LeadId));
-    // When lead is deleted on Bitrix, the system deletes the customer row from Google Sheet
+    const afterDelRows = sheetDataAfterDel.data.values || [];
+    const targetRow = afterDelRows.find((r) => String(r[col.leadId]) === String(newB24LeadId));
+    // When lead is deleted on Bitrix, the system deletes ONLY the row with matching bitrixLeadId
     const isDeletedFromSheet = !targetRow;
     const isMarkedError = targetRow && targetRow[col.syncStatus] === 'LỖI';
-    assert(isDeletedFromSheet || isMarkedError, `Dòng phải được tự động xóa sạch khỏi Google Sheet hoặc đánh dấu LỖI (thực tế: ${isDeletedFromSheet ? 'Đã xóa hoàn toàn' : targetRow[col.syncStatus]})`);
-    console.log('=> TC11 THÀNH CÔNG: Webhook xóa trên Bitrix24 tự động xóa khách hàng sạch sẽ khỏi Sheet!\n');
+    assert(isDeletedFromSheet || isMarkedError, `Dòng có Lead ID #${newB24LeadId} phải được tự động xóa khỏi Google Sheet (thực tế: ${isDeletedFromSheet ? 'Đã xóa hoàn toàn' : targetRow[col.syncStatus]})`);
+
+    // Verify the unsynced row with same email was NOT deleted
+    const preservedRow = afterDelRows.find((r) => r[col.name] === 'Hoàng Văn Đồng Nghiệp');
+    assert(Boolean(preservedRow), 'Dòng phụ trùng Email nhưng chưa có Lead ID phải được bảo toàn, KHÔNG ĐƯỢC xóa nhầm!');
+    console.log('  [PASS] Dòng phụ chưa có Lead ID được bảo toàn 100% (không bị xóa nhầm)');
+
+    // Dọn dẹp dòng kiểm thử phụ này để không ảnh hưởng các test sau
+    const preservedRowIdx = afterDelRows.findIndex((r) => r[col.name] === 'Hoàng Văn Đồng Nghiệp') + 1;
+    if (preservedRowIdx > 0) {
+      await sheets.spreadsheets.batchUpdate({
+        spreadsheetId: SPREADSHEET_ID,
+        requestBody: {
+          requests: [
+            {
+              deleteDimension: {
+                range: {
+                  sheetId: 0,
+                  dimension: 'ROWS',
+                  startIndex: preservedRowIdx - 1,
+                  endIndex: preservedRowIdx,
+                },
+              },
+            },
+          ],
+        },
+      });
+    }
+    console.log('=> TC11 THÀNH CÔNG: Webhook xóa chỉ xóa đúng dòng mang Lead ID, bảo vệ an toàn các dòng khác!\n');
   } catch (err) {
     console.error('TC11 GẶP LỖI:', err.message);
   }

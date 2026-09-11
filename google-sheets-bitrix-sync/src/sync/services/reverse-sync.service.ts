@@ -70,43 +70,17 @@ export class ReverseSyncService implements IReverseSyncService {
       return '';
     };
 
-    // Helper to collect all rows belonging to a deleted customer, including duplicates
+    // Helper to collect all rows with matching Bitrix Lead ID for deletion (strictly by Lead ID)
     const collectCustomerRowsToDelete = (deletedBitrixId: number | string) => {
       const idStr = String(deletedBitrixId);
-      const directMatches = rows.filter(
-        (r) => String(r.systemFields.bitrixLeadId) === idStr,
-      );
-
-      if (directMatches.length === 0) return;
-
-      const customerEmails = new Set<string>();
-      const customerPhones = new Set<string>();
-
-      for (const r of directMatches) {
-        rowIndicesToDelete.add(r.rowIndex);
-        const email = getRowEmail(r);
-        if (email) customerEmails.add(email);
-        const phone = getRowPhoneDigits(r);
-        if (phone.length >= 9) customerPhones.add(phone.slice(-9));
-      }
-
-      // Find any duplicate rows for this customer on Google Sheet (e.g. duplicates waiting for sync or without ID)
       for (const r of rows) {
-        if (rowIndicesToDelete.has(r.rowIndex)) continue;
-
-        const rowLeadId = r.systemFields.bitrixLeadId;
-        // Do NOT delete if row has a DIFFERENT active Bitrix lead ID
-        if (rowLeadId && String(rowLeadId) !== idStr) continue;
-
-        const rEmail = getRowEmail(r);
-        const rPhone = getRowPhoneDigits(r);
-
-        const emailMatch = rEmail && customerEmails.has(rEmail);
-        const phoneMatch = rPhone.length >= 9 && customerPhones.has(rPhone.slice(-9));
-
-        if (emailMatch || phoneMatch) {
+        if (
+          r.systemFields.bitrixLeadId &&
+          String(r.systemFields.bitrixLeadId) === idStr &&
+          !rowIndicesToDelete.has(r.rowIndex)
+        ) {
           this.logger.warn(
-            `Found duplicate row ${r.rowIndex} for customer of deleted Lead #${deletedBitrixId}. Marking row for deletion.`,
+            `Lead #${idStr} was deleted on Bitrix24. Marking row ${r.rowIndex} with matching Lead ID for deletion on Google Sheet`,
             'ReverseSyncService',
           );
           rowIndicesToDelete.add(r.rowIndex);
@@ -135,7 +109,9 @@ export class ReverseSyncService implements IReverseSyncService {
         }
       }
     } else {
-      const leads = await this.bitrixLeadService.listLeads({});
+      const leads = typeof this.bitrixLeadService.listAllLeads === 'function'
+        ? await this.bitrixLeadService.listAllLeads({})
+        : await this.bitrixLeadService.listLeads({});
       bitrixLeads.push(...leads);
 
       // Check for any rows on Google Sheets that have a bitrixLeadId but are no longer active in Bitrix24
@@ -150,7 +126,7 @@ export class ReverseSyncService implements IReverseSyncService {
           try {
             const checkLead = await this.bitrixLeadService.getLead(rowLeadId);
             if (!checkLead) {
-              this.logger.warn(`Lead #${rowLeadId} was deleted on Bitrix24. Marking row ${row.rowIndex} and duplicates for deletion`, 'ReverseSyncService');
+              this.logger.warn(`Lead #${rowLeadId} was deleted on Bitrix24. Marking matching row ${row.rowIndex} for deletion`, 'ReverseSyncService');
               collectCustomerRowsToDelete(rowLeadId);
             }
           } catch (err: any) {

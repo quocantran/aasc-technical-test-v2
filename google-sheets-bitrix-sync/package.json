@@ -23,8 +23,7 @@
     "test:cov": "vitest run --coverage",
     "test:perf": "node scripts/live_benchmark.cjs",
     "test:e2e": "vitest run --config ./vitest.config.e2e.ts",
-    "test:system": "node scripts/system_test.cjs",
-    "scan:comments": "node scripts/codebase_scanner.cjs"
+    "test:system": "node scripts/system_test.cjs"
   },
   "dependencies": {
     "@nestjs/axios": "^12.0.0",
@@ -66,5 +65,14 @@
     "typescript": "^6.0.2",
     "vite-tsconfig-paths": "^5.1.4",
     "vitest": "^4.1.2"
+  },
+  "overrides": {
+    "@golevelup/nestjs-discovery": {
+      "@nestjs/common": "$@nestjs/common",
+      "@nestjs/core": "$@nestjs/core"
+    },
+    "tsconfck": {
+      "typescript": "$typescript"
+    }
   }
 }

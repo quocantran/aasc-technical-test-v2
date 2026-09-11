@@ -94,27 +94,32 @@ describe('BitrixService', () => {
     });
   });
 
-  it('should proactively refresh token and retry call on expired_token error', async () => {
-    mockWebhookStrategy.refreshToken = vi.fn().mockResolvedValue(true);
+  it('should return empty result and error when batch commands are empty', async () => {
+    const response = await service.executeBatch({});
+    expect(response).toEqual({ result: {}, result_error: {} });
+  });
 
-    const mockPost = vi
-      .fn()
-      .mockResolvedValueOnce({
-        data: {
-          error: 'expired_token',
-          error_description: 'The access token provided has expired',
-        },
-      })
-      .mockResolvedValueOnce({
-        data: { result: 100 },
-      });
+  it('should pass halt: 1 when haltOnError is true', async () => {
+    vi.spyOn(service, 'callMethod').mockResolvedValue({
+      result: {},
+      result_error: {},
+    });
 
-    (service as any).httpClient.post = mockPost;
+    await service.executeBatch({ cmd1: 'test' }, true);
+    expect(service.callMethod).toHaveBeenCalledWith('batch', {
+      halt: 1,
+      cmd: { cmd1: 'test' },
+    });
+  });
 
-    const result = await service.callMethod('crm.lead.get', { id: 1 });
+  it('should fallback to error string if error_description is absent', async () => {
+    (service as any).httpClient.post = vi.fn().mockResolvedValue({
+      data: {
+        error: 'GENERIC_ERROR',
+      },
+    });
 
-    expect(result).toBe(100);
-    expect(mockWebhookStrategy.refreshToken).toHaveBeenCalledTimes(1);
-    expect(mockPost).toHaveBeenCalledTimes(2);
+    await expect(service.callMethod('test')).rejects.toThrow('Bitrix24 Error [GENERIC_ERROR]: GENERIC_ERROR');
   });
 });
+

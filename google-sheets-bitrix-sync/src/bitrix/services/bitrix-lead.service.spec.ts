@@ -88,13 +88,15 @@ describe('BitrixLeadService', () => {
     expect(mockBitrixService.callMethod).toHaveBeenCalledWith(BITRIX_API_METHODS.LEAD_LIST, {
       filter: { STATUS_ID: 'NEW' },
       select: ['*', 'UF_*', 'EMAIL', 'PHONE', 'WEB', 'IM'],
+      start: 0,
     });
 
-    const customResult = await leadService.listLeads({ STATUS_ID: 'WON' }, ['ID', 'TITLE']);
+    const customResult = await leadService.listLeads({ STATUS_ID: 'WON' }, ['ID', 'TITLE'], 50);
     expect(customResult).toEqual(leadsList);
     expect(mockBitrixService.callMethod).toHaveBeenCalledWith(BITRIX_API_METHODS.LEAD_LIST, {
       filter: { STATUS_ID: 'WON' },
       select: ['ID', 'TITLE'],
+      start: 50,
     });
   });
 
@@ -102,6 +104,25 @@ describe('BitrixLeadService', () => {
     mockBitrixService.callMethod.mockResolvedValue(null);
     const result = await leadService.listLeads({});
     expect(result).toEqual([]);
+  });
+
+  it('should listAllLeads across multiple pages and stop when results < 50', async () => {
+    const page1 = Array.from({ length: 50 }, (_, i) => ({ ID: String(i + 1), TITLE: `Lead ${i + 1}` }));
+    const page2 = [{ ID: '51', TITLE: 'Lead 51' }];
+
+    mockBitrixService.callMethod
+      .mockResolvedValueOnce(page1)
+      .mockResolvedValueOnce(page2);
+
+    const all = await leadService.listAllLeads({ STATUS_ID: 'NEW' });
+    expect(all).toHaveLength(51);
+    expect(mockBitrixService.callMethod).toHaveBeenCalledTimes(2);
+  });
+
+  it('should listAllLeads and return empty array if first page is empty', async () => {
+    mockBitrixService.callMethod.mockResolvedValueOnce([]);
+    const all = await leadService.listAllLeads({});
+    expect(all).toEqual([]);
   });
 
   it('should delete lead by ID', async () => {
@@ -201,5 +222,38 @@ describe('BitrixLeadService', () => {
     expect(fields.length).toBeGreaterThan(0);
     expect(fields.some((f) => f.field === 'TITLE')).toBe(true);
     expect(mockLogger.warn).toHaveBeenCalled();
+  });
+
+  it('should fallback to standard lead catalog if api returns non-object', async () => {
+    mockBitrixService.callMethod.mockResolvedValue(null);
+
+    const fields = await leadService.getLeadFields();
+    expect(fields.length).toBeGreaterThan(0);
+  });
+
+  it('should return empty maps in findDuplicatesMap when inputs are empty', async () => {
+    const res = await leadService.findDuplicatesMap([], []);
+    expect(res).toEqual({ emailMap: {}, phoneMap: {} });
+  });
+
+  it('should batch find duplicates and populate emailMap and phoneMap', async () => {
+    mockBitrixService.executeBatch.mockResolvedValue({
+      result: {
+        em_0: { LEAD: ['101'] },
+        ph_1: { LEAD: ['102'] },
+      },
+    });
+
+    const res = await leadService.findDuplicatesMap(['test@example.com'], ['0912345678']);
+    expect(res.emailMap['test@example.com']).toBe(101);
+    expect(res.phoneMap['0912345678']).toBe(102);
+  });
+
+  it('should chunk findDuplicatesMap when commands exceed max batch size', async () => {
+    const emails = Array.from({ length: 60 }, (_, i) => `user${i}@example.com`);
+    mockBitrixService.executeBatch.mockResolvedValue({ result: {} });
+
+    await leadService.findDuplicatesMap(emails, []);
+    expect(mockBitrixService.executeBatch).toHaveBeenCalledTimes(2);
   });
 });

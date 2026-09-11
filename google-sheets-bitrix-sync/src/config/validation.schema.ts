@@ -11,17 +11,10 @@ export const envValidationSchema = Joi.object({
     .default('info'),
   DATABASE_PATH: Joi.string().default('data/database.sqlite'),
 
-  BITRIX_AUTH_TYPE: Joi.string().valid('WEBHOOK', 'OAUTH2').default('WEBHOOK'),
-  BITRIX_WEBHOOK_URL: Joi.string().uri().optional().allow(''),
+  BITRIX_WEBHOOK_URL: Joi.string().uri().required(),
   BITRIX_RATE_LIMIT_RPS: Joi.number().default(2),
   BITRIX_MAX_RETRIES: Joi.number().default(3),
   BITRIX_INBOUND_WEBHOOK_SECRET: Joi.string().optional().allow(''),
-
-  BITRIX24_CLIENT_ID: Joi.string().optional().allow(''),
-  BITRIX24_CLIENT_SECRET: Joi.string().optional().allow(''),
-  BITRIX24_DEFAULT_DOMAIN: Joi.string().optional().allow(''),
-  BITRIX24_OAUTH_URL: Joi.string().optional().allow(''),
-  BITRIX24_API_TIMEOUT: Joi.number().optional(),
 
   GOOGLE_AUTH_TYPE: Joi.string().valid('SERVICE_ACCOUNT', 'OAUTH2').default('SERVICE_ACCOUNT'),
   GOOGLE_SHEET_ID: Joi.string().required(),

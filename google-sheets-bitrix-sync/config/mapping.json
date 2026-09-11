@@ -32,11 +32,25 @@
       "bitrixField": "SOURCE_ID",
       "type": "enum",
       "valueMapping": {
+        "Cuộc gọi": "CALL",
+        "Call": "CALL",
         "Website": "WEB",
+        "Email": "EMAIL",
+        "E-mail": "EMAIL",
         "Facebook": "FACEBOOK",
+        "Quảng cáo": "ADVERTISING",
         "Đối tác": "PARTNER",
+        "Khách hàng Hiện có": "PARTNER",
         "Sự kiện": "TRADE_SHOW",
+        "Hiển thị/Trưng bày": "TRADE_SHOW",
         "Giới thiệu": "RECOMMENDATION",
+        "Theo Khuyến nghị": "RECOMMENDATION",
+        "Biểu mẫu CRM": "WEBFORM",
+        "Gọi lại": "CALLBACK",
+        "Tăng cường doanh số": "RC_GENERATOR",
+        "Cửa hàng Trực tuyến": "STORE",
+        "Đặt chỗ": "BOOKING",
+        "Bán hàng lặp lại": "REPEAT_SALE",
         "Khác": "OTHER"
       },
       "defaultValue": "OTHER"
@@ -59,11 +73,16 @@
       "valueMapping": {
         "Mới": "NEW",
         "Chưa xử lý": "NEW",
+        "Chưa giao người xử lý": "NEW",
         "Đang liên hệ": "IN_PROCESS",
         "Đang xử lý": "IN_PROCESS",
+        "Trong tiến trình": "IN_PROCESS",
         "Đã xử lý": "PROCESSED",
         "Hoàn thành": "CONVERTED",
-        "Không tiềm năng": "JUNK"
+        "Thành công": "CONVERTED",
+        "Khách hàng tiềm năng tốt": "CONVERTED",
+        "Không tiềm năng": "JUNK",
+        "Khách hàng tiềm năng kém chất lượng": "JUNK"
       },
       "defaultValue": "NEW"
     },

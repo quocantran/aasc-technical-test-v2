@@ -7,19 +7,38 @@
 const DEFAULT_STATUS_MAPPINGS = {
   'Mới': 'NEW',
   'Chưa xử lý': 'NEW',
+  'Chưa giao người xử lý': 'NEW',
   'Đang liên hệ': 'IN_PROCESS',
   'Đang xử lý': 'IN_PROCESS',
+  'Trong tiến trình': 'IN_PROCESS',
   'Đã xử lý': 'PROCESSED',
   'Hoàn thành': 'CONVERTED',
+  'Thành công': 'CONVERTED',
+  'Khách hàng tiềm năng tốt': 'CONVERTED',
   'Không tiềm năng': 'JUNK',
+  'Khách hàng tiềm năng kém chất lượng': 'JUNK',
 };
 
 const DEFAULT_SOURCE_MAPPINGS = {
+  'Cuộc gọi': 'CALL',
+  'Call': 'CALL',
   'Website': 'WEB',
+  'Email': 'EMAIL',
+  'E-mail': 'EMAIL',
   'Facebook': 'FACEBOOK',
+  'Quảng cáo': 'ADVERTISING',
   'Đối tác': 'PARTNER',
+  'Khách hàng Hiện có': 'PARTNER',
   'Sự kiện': 'TRADE_SHOW',
+  'Hiển thị/Trưng bày': 'TRADE_SHOW',
   'Giới thiệu': 'RECOMMENDATION',
+  'Theo Khuyến nghị': 'RECOMMENDATION',
+  'Biểu mẫu CRM': 'WEBFORM',
+  'Gọi lại': 'CALLBACK',
+  'Tăng cường doanh số': 'RC_GENERATOR',
+  'Cửa hàng Trực tuyến': 'STORE',
+  'Đặt chỗ': 'BOOKING',
+  'Bán hàng lặp lại': 'REPEAT_SALE',
   'Khác': 'OTHER',
 };
 
@@ -179,6 +198,7 @@ async function fetchStatus() {
     }
 
     await fetchLogs();
+    await checkGoogleAuthStatus();
   } catch (error) {
     console.error('Failed to fetch sync status:', error);
   }
@@ -512,6 +532,106 @@ async function fetchLogs() {
   }
 }
 
+// Checks Google Auth callback query parameters in URL and displays toast notification
+function checkGoogleAuthRedirect() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const authStatus = urlParams.get('auth') || urlParams.get('google_auth');
+  if (authStatus === 'success') {
+    showAlert('success', '🎉 Kết nối Google Sheets thành công! Hệ thống đã sẵn sàng đồng bộ.');
+    window.history.replaceState({}, document.title, window.location.pathname);
+  } else if (authStatus === 'error') {
+    const msg = urlParams.get('msg') || 'Lỗi không xác định khi ủy quyền Google OAuth';
+    showAlert('danger', `❌ Lỗi cấp quyền Google OAuth: ${decodeURIComponent(msg)}`);
+    window.history.replaceState({}, document.title, window.location.pathname);
+  }
+}
+
+// Queries backend to check Google authentication mode and OAuth status
+async function checkGoogleAuthStatus() {
+  const container = document.getElementById('googleAuthContainer');
+  if (!container) return;
+
+  try {
+    const res = await fetch('/api/auth/google/status');
+    const json = await res.json();
+    if (json.status === 'success' && json.data) {
+      const { isOAuth, isConnected } = json.data;
+      if (!isOAuth) {
+        // SERVICE_ACCOUNT: Hiển thị huy hiệu tự động, không xuất hiện nút OAuth
+        container.innerHTML = `
+          <div class="auth-status-badge badge-sa" title="Đang sử dụng Google Cloud Service Account qua credentials.json">
+            <span class="badge-dot dot-green"></span>
+            <span>✓ Kết nối: Service Account (Tự động)</span>
+          </div>
+        `;
+      } else {
+        // OAUTH2
+        if (isConnected) {
+          container.innerHTML = `
+            <div class="auth-status-badge badge-oauth-ok" title="Đã lưu cặp token bền vững trong SQLite và tự động gia hạn">
+              <span class="badge-dot dot-green"></span>
+              <span>✓ Google Sheets: Đã kết nối</span>
+            </div>
+            <button id="btnConnectGoogle" class="btn-google-oauth btn-google-oauth-switch" onclick="connectGoogleOAuth()" title="Đăng nhập tài khoản Google khác hoặc cấp lại quyền">
+              <svg width="15" height="15" viewBox="0 0 24 24" style="flex-shrink: 0;">
+                <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17Z"/>
+                <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24Z"/>
+                <path fill="#FBBC05" d="M5.28 14.27a7.13 7.13 0 0 1 0-4.54V6.58H1.25a11.97 11.97 0 0 0 0 10.84l4.03-3.15Z"/>
+                <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98Z"/>
+              </svg>
+              <span>Đổi tài khoản khác</span>
+            </button>
+          `;
+        } else {
+          container.innerHTML = `
+            <button id="btnConnectGoogle" class="btn-google-oauth" onclick="connectGoogleOAuth()" title="Đăng nhập Google để cấp quyền đọc/ghi Google Sheets">
+              <svg width="15" height="15" viewBox="0 0 24 24" style="flex-shrink: 0;">
+                <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17Z"/>
+                <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24Z"/>
+                <path fill="#FBBC05" d="M5.28 14.27a7.13 7.13 0 0 1 0-4.54V6.58H1.25a11.97 11.97 0 0 0 0 10.84l4.03-3.15Z"/>
+                <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98Z"/>
+              </svg>
+              <span>Kết nối Google với OAUTH2</span>
+            </button>
+          `;
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('Could not check Google Auth status:', err);
+  }
+}
+
+// Initiates Google OAuth consent flow for non-tech users
+async function connectGoogleOAuth() {
+  const btn = document.getElementById('btnConnectGoogle');
+  const originalHtml = btn ? btn.innerHTML : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span>Đang chuyển hướng...</span>';
+  }
+
+  try {
+    const res = await fetch('/api/auth/google/url');
+    const json = await res.json();
+    if (json.status === 'success' && json.data?.url) {
+      window.location.href = json.data.url;
+    } else {
+      showAlert('danger', 'Không thể tạo đường dẫn xác thực Google OAuth 2.0.');
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
+      }
+    }
+  } catch (err) {
+    showAlert('danger', `Lỗi kết nối máy chủ: ${err.message}`);
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = originalHtml;
+    }
+  }
+}
+
 // Displays toast notification alert in dashboard
 function showAlert(type, message) {
   const el = document.getElementById('statusAlert');
@@ -528,6 +648,8 @@ function showAlert(type, message) {
 
 // Initializes dashboard when DOM content is loaded
 document.addEventListener('DOMContentLoaded', async () => {
+  checkGoogleAuthRedirect();
+  await checkGoogleAuthStatus();
   await loadBitrixFields();
   await loadMappingTable();
   await fetchStatus();

@@ -1,5 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { AdminController } from './admin.controller.js';
+import { BadRequestException } from '@nestjs/common';
 import fs from 'fs';
 
 describe('AdminController', () => {
@@ -10,6 +11,7 @@ describe('AdminController', () => {
   let mockBitrixLeadService: any;
 
   beforeEach(() => {
+    vi.useFakeTimers();
     mockSyncOrchestrator = {
       getRecentLogs: vi.fn().mockReturnValue([{ direction: 'SHEETS_TO_BITRIX', created: 1 }]),
       syncBitrixToSheets: vi.fn().mockResolvedValue({ totalRows: 5, updated: 1 }),
@@ -36,6 +38,15 @@ describe('AdminController', () => {
     );
   });
 
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('should redirect root path / to /admin', () => {
+    const res = controller.redirectToAdmin();
+    expect(res).toEqual({ url: '/admin' });
+  });
+
   it('should return bitrix lead fields on GET /api/bitrix/lead-fields', async () => {
     const res = await controller.getBitrixLeadFields();
     expect(res.status).toBe('success');
@@ -58,10 +69,32 @@ describe('AdminController', () => {
     expect(res.status).toBe('success');
   });
 
-  it('should return recent logs on GET /api/sync/logs', () => {
+  it('should throw BadRequestException if updateMapping receives invalid config', () => {
+    mockMappingService.saveMappingConfig.mockImplementation(() => {
+      throw new Error('mapping.json must define a non-empty fields array');
+    });
+
+    expect(() => controller.updateMapping({ fields: [] } as any)).toThrow(BadRequestException);
+  });
+
+  it('should return recent logs with default limit on GET /api/sync/logs', () => {
     const res = controller.getLogs();
     expect(res.status).toBe('success');
-    expect(res.data).toHaveLength(1);
+    expect(mockSyncOrchestrator.getRecentLogs).toHaveBeenCalledWith(20);
+  });
+
+  it('should parse and clamp limit query param on GET /api/sync/logs', () => {
+    controller.getLogs('50');
+    expect(mockSyncOrchestrator.getRecentLogs).toHaveBeenCalledWith(50);
+
+    controller.getLogs('500'); // capped at 100
+    expect(mockSyncOrchestrator.getRecentLogs).toHaveBeenCalledWith(100);
+
+    controller.getLogs('-5'); // clamped to 1
+    expect(mockSyncOrchestrator.getRecentLogs).toHaveBeenCalledWith(1);
+
+    controller.getLogs('invalid'); // fallback to 20
+    expect(mockSyncOrchestrator.getRecentLogs).toHaveBeenCalledWith(20);
   });
 
   it('should trigger two-way sync on POST /api/sync/two-way', async () => {
@@ -72,7 +105,9 @@ describe('AdminController', () => {
 
   it('should return warning on two-way sync if lock is active', async () => {
     mockLockService.isLocked.mockReturnValue(true);
-    const res = await controller.triggerTwoWaySync();
+    const promise = controller.triggerTwoWaySync();
+    await vi.runAllTimersAsync();
+    const res = await promise;
     expect(res.status).toBe('warning');
     expect(res.isSkippedDueToLock).toBe(true);
   });

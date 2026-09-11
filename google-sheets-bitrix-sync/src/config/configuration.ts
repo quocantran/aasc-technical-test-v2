@@ -7,18 +7,10 @@ export default () => ({
     databasePath: process.env.DATABASE_PATH || 'data/database.sqlite',
   },
   bitrix: {
-    authType: process.env.BITRIX_AUTH_TYPE || 'WEBHOOK',
     webhookUrl: process.env.BITRIX_WEBHOOK_URL || '',
     rateLimitRps: parseInt(process.env.BITRIX_RATE_LIMIT_RPS || '2', 10),
     maxRetries: parseInt(process.env.BITRIX_MAX_RETRIES || '3', 10),
     inboundWebhookSecret: process.env.BITRIX_INBOUND_WEBHOOK_SECRET || '',
-    oauth: {
-      clientId: process.env.BITRIX24_CLIENT_ID || '',
-      clientSecret: process.env.BITRIX24_CLIENT_SECRET || '',
-      portalDomain: process.env.BITRIX24_DEFAULT_DOMAIN || '',
-      oauthUrl: process.env.BITRIX24_OAUTH_URL || 'https://oauth.bitrix.info/oauth/token/',
-      apiTimeout: parseInt(process.env.BITRIX24_API_TIMEOUT || '10000', 10),
-    },
   },
   googleSheets: {
     authType: process.env.GOOGLE_AUTH_TYPE || 'SERVICE_ACCOUNT',

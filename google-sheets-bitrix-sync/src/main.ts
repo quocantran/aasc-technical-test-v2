@@ -10,7 +10,7 @@ async function bootstrap() {
   const logger = app.get(AppLogger);
   app.useLogger(logger);
 
-  app.useStaticAssets(join(process.cwd(), 'public'));
+  app.useStaticAssets(join(process.cwd(), 'public'), { index: false });
 
   const port = process.env.PORT ?? 3000;
   await app.listen(port);

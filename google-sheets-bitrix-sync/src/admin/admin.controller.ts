@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Header, HttpCode, HttpStatus, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Header, HttpCode, HttpStatus, Query, BadRequestException, Redirect } from '@nestjs/common';
 import fs from 'fs';
 import { join } from 'path';
 import { SyncOrchestratorService } from '../sync/services/sync-orchestrator.service.js';
@@ -16,6 +16,13 @@ export class AdminController {
     private readonly lockService: LockService,
     private readonly bitrixLeadService: BitrixLeadService,
   ) {}
+
+  // Redirects root path / to /admin management dashboard
+  @Get()
+  @Redirect('/admin', 302)
+  redirectToAdmin() {
+    return { url: '/admin' };
+  }
 
   // Returns available Bitrix24 Lead fields for non-tech admin selection
   @Get('api/bitrix/lead-fields')
@@ -40,12 +47,16 @@ export class AdminController {
   @Post('api/mapping')
   @HttpCode(HttpStatus.OK)
   updateMapping(@Body() body: Record<string, any>) {
-    this.mappingService.saveMappingConfig(body as MappingConfiguration);
-    return {
-      status: 'success',
-      message: 'Cập nhật cấu hình mapping thành công',
-      data: this.mappingService.getMappingConfig(),
-    };
+    try {
+      this.mappingService.saveMappingConfig(body as MappingConfiguration);
+      return {
+        status: 'success',
+        message: 'Cập nhật cấu hình mapping thành công',
+        data: this.mappingService.getMappingConfig(),
+      };
+    } catch (err: any) {
+      throw new BadRequestException(err.message || 'Cấu hình mapping không hợp lệ');
+    }
   }
 
   // Returns execution logs and historical sync statistics (defaults to most recent 20 runs)

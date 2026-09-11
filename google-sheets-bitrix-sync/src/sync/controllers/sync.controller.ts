@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, Query, HttpCode, HttpStatus, Optional } from '@nestjs/common';
+import { Controller, Post, Get, Body, Query, HttpCode, HttpStatus, Optional, HttpException } from '@nestjs/common';
 import { SyncOrchestratorService } from '../services/sync-orchestrator.service.js';
 import { LockService } from '../services/lock.service.js';
 import { GoogleSheetsService } from '../../google-sheets/google-sheets.service.js';
@@ -52,13 +52,17 @@ export class SyncController {
       };
     }
 
-    const result = await this.syncOrchestrator.runSync({ force: isForce });
+    try {
+      const result = await this.syncOrchestrator.runSync({ force: isForce });
 
-    return {
-      status: 'success',
-      message: 'Đồng bộ Google Sheets -> Bitrix24 hoàn tất',
-      data: result,
-    };
+      return {
+        status: 'success',
+        message: 'Đồng bộ Google Sheets -> Bitrix24 hoàn tất',
+        data: result,
+      };
+    } catch (err: any) {
+      throw new HttpException(err.message || 'Lỗi trong quá trình đồng bộ', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
   }
 
   // Triggers reverse sync from Bitrix24 to Google Sheets on-demand
