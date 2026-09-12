@@ -1,0 +1,153 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": true,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "title": "⚡ System Status & Key Performance Indicators (KPIs)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 1 },
+      "id": 1,
+      "title": "Node.js Process Uptime",
+      "type": "stat",
+      "targets": [{ "expr": "nodejs_process_uptime_seconds", "format": "time_series", "instant": true }],
+      "fieldConfig": { "defaults": { "unit": "s", "color": { "mode": "thresholds" } } }
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 1 },
+      "id": 2,
+      "title": "Total TikTok Webhooks Ingested",
+      "type": "stat",
+      "targets": [{ "expr": "sum(tiktok_webhooks_total) or vector(0)", "format": "time_series", "instant": true }],
+      "fieldConfig": { "defaults": { "color": { "fixedColor": "green", "mode": "fixed" } } }
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 1 },
+      "id": 3,
+      "title": "Bitrix24 CRM API Calls Total",
+      "type": "stat",
+      "targets": [{ "expr": "sum(bitrix_api_requests_total) or vector(0)", "format": "time_series", "instant": true }],
+      "fieldConfig": { "defaults": { "color": { "fixedColor": "blue", "mode": "fixed" } } }
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 1 },
+      "id": 4,
+      "title": "Rule Engine Deals Converted",
+      "type": "stat",
+      "targets": [{ "expr": "sum(deals_converted_total) or vector(0)", "format": "time_series", "instant": true }],
+      "fieldConfig": { "defaults": { "color": { "fixedColor": "purple", "mode": "fixed" } } }
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+      "id": 101,
+      "title": "🌐 HTTP Traffic, Throughput & Request Latency",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 6 },
+      "id": 5,
+      "title": "HTTP Request Rate (req/s)",
+      "type": "timeseries",
+      "targets": [{ "expr": "sum by (status_code) (rate(http_requests_total[1m]))", "legendFormat": "Status {{status_code}}" }],
+      "fieldConfig": { "defaults": { "unit": "reqps" } }
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 6 },
+      "id": 6,
+      "title": "HTTP Latency (P95 & P99)",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket[1m]))) * 1000", "legendFormat": "P95 Latency (ms)" },
+        { "expr": "histogram_quantile(0.99, sum by (le) (rate(http_request_duration_seconds_bucket[1m]))) * 1000", "legendFormat": "P99 Latency (ms)" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ms" } }
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 13 },
+      "id": 102,
+      "title": "📥 BullMQ Queue Backlog & SRE Queue Lag",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 14 },
+      "id": 7,
+      "title": "Queue Lag (Waiting Jobs per Queue)",
+      "type": "timeseries",
+      "targets": [{ "expr": "bullmq_queue_jobs{status=\"waiting\"}", "legendFormat": "Queue: {{queue}}" }],
+      "fieldConfig": { "defaults": { "unit": "short" } }
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 14 },
+      "id": 8,
+      "title": "Active Jobs Being Processed",
+      "type": "timeseries",
+      "targets": [{ "expr": "bullmq_queue_jobs{status=\"active\"}", "legendFormat": "Queue: {{queue}}" }],
+      "fieldConfig": { "defaults": { "unit": "short" } }
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 21 },
+      "id": 103,
+      "title": "💼 Bitrix24 CRM Rate Limiting & TikTok Webhook Funnel",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 22 },
+      "id": 9,
+      "title": "Bitrix24 API Calls / Second (Max 2 RPS Threshold)",
+      "type": "timeseries",
+      "targets": [{ "expr": "sum(rate(bitrix_api_requests_total[1m])) or vector(0)", "legendFormat": "Bitrix24 Calls (req/s)" }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 2 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 22 },
+      "id": 10,
+      "title": "TikTok Webhooks Breakdown by Event Type",
+      "type": "timeseries",
+      "targets": [{ "expr": "sum by (event_type) (tiktok_webhooks_total)", "legendFormat": "Event: {{event_type}}" }],
+      "fieldConfig": { "defaults": { "unit": "short" } }
+    }
+  ],
+  "refresh": "5s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["tiktok", "bitrix24", "bullmq", "production"],
+  "time": { "from": "now-15m", "to": "now" },
+  "timepicker": { "refresh_intervals": ["5s", "10s", "30s", "1m"] },
+  "timezone": "browser",
+  "title": "TikTok Lead Generation ↔ Bitrix24 CRM Observability",
+  "uid": "tiktok-bitrix-observability",
+  "version": 1
+}

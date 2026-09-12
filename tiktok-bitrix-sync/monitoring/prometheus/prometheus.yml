@@ -1,0 +1,22 @@
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+scrape_configs:
+  # Scrapes NestJS App when running inside Docker network
+  - job_name: 'tiktok-bitrix-sync-docker'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['app:3000']
+        labels:
+          environment: 'docker'
+          service: 'tiktok-bitrix-sync'
+
+  # Scrapes NestJS App when running locally on host machine (npm run start:dev)
+  - job_name: 'tiktok-bitrix-sync-local'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['host.docker.internal:3000']
+        labels:
+          environment: 'local-dev'
+          service: 'tiktok-bitrix-sync'

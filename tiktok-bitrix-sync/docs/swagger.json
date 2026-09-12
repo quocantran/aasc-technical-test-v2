@@ -1,0 +1,766 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/leads": {
+      "get": {
+        "operationId": "LeadController_getLeads",
+        "summary": "Get paginated list of leads with filters",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Page number",
+            "schema": {
+              "default": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Items per page",
+            "schema": {
+              "default": 10,
+              "type": "number"
+            }
+          },
+          {
+            "name": "source",
+            "required": false,
+            "in": "query",
+            "description": "Filter by lead source (e.g. tiktok)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "campaign_id",
+            "required": false,
+            "in": "query",
+            "description": "Filter by campaign ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "description": "Filter by lead status (new, synced, converted, failed)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated lead results"
+          }
+        },
+        "tags": [
+          "Leads"
+        ],
+        "security": [
+          {
+            "x-api-key": []
+          }
+        ]
+      }
+    },
+    "/leads/batch-migrate": {
+      "post": {
+        "operationId": "LeadController_batchMigrate",
+        "summary": "Trigger asynchronous batch migration of historical leads into Bitrix24",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchMigrateDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Batch migration job accepted and enqueued"
+          }
+        },
+        "tags": [
+          "Leads"
+        ],
+        "security": [
+          {
+            "x-api-key": []
+          }
+        ]
+      }
+    },
+    "/leads/batch-migrate/{jobId}": {
+      "get": {
+        "operationId": "LeadController_getMigrationStatus",
+        "summary": "Get status and metrics of a historical batch migration job",
+        "parameters": [
+          {
+            "name": "jobId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Migration job status details"
+          }
+        },
+        "tags": [
+          "Leads"
+        ],
+        "security": [
+          {
+            "x-api-key": []
+          }
+        ]
+      }
+    },
+    "/leads/{id}": {
+      "get": {
+        "operationId": "LeadController_getLeadById",
+        "summary": "Get details of a specific lead by ID",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lead details"
+          }
+        },
+        "tags": [
+          "Leads"
+        ],
+        "security": [
+          {
+            "x-api-key": []
+          }
+        ]
+      }
+    },
+    "/leads/{id}/convert-to-deal": {
+      "post": {
+        "operationId": "LeadController_convertToDeal",
+        "summary": "Manually convert a lead into a Bitrix24 CRM Deal",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConvertLeadDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Lead converted into deal"
+          }
+        },
+        "tags": [
+          "Leads"
+        ],
+        "security": [
+          {
+            "x-api-key": []
+          }
+        ]
+      }
+    },
+    "/webhooks/bitrix24/deals": {
+      "post": {
+        "operationId": "BitrixWebhookController_handleDealWebhook",
+        "summary": "Receive outbound webhook notifications from Bitrix24 Deals",
+        "parameters": [
+          {
+            "name": "authorization",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Webhook processed or queued successfully"
+          }
+        },
+        "tags": [
+          "Webhooks"
+        ]
+      }
+    },
+    "/config/mappings": {
+      "get": {
+        "operationId": "ConfigController_getMappings",
+        "summary": "Get current TikTok to Bitrix24 field mapping configuration",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Current mapping configuration"
+          }
+        },
+        "tags": [
+          "Configuration"
+        ],
+        "security": [
+          {
+            "x-api-key": []
+          }
+        ]
+      },
+      "put": {
+        "operationId": "ConfigController_updateMappings",
+        "summary": "Update TikTok to Bitrix24 field mapping configuration",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMappingDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated mapping configuration"
+          }
+        },
+        "tags": [
+          "Configuration"
+        ],
+        "security": [
+          {
+            "x-api-key": []
+          }
+        ]
+      }
+    },
+    "/config/rules": {
+      "get": {
+        "operationId": "ConfigController_getRules",
+        "summary": "Get configured deal conversion rules",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "List of configured deal rules"
+          }
+        },
+        "tags": [
+          "Configuration"
+        ],
+        "security": [
+          {
+            "x-api-key": []
+          }
+        ]
+      },
+      "put": {
+        "operationId": "ConfigController_updateRules",
+        "summary": "Update deal conversion rules",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRulesDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated deal rules"
+          }
+        },
+        "tags": [
+          "Configuration"
+        ],
+        "security": [
+          {
+            "x-api-key": []
+          }
+        ]
+      }
+    },
+    "/deals": {
+      "get": {
+        "operationId": "DealController_getDeals",
+        "summary": "Get paginated list of deals filtered by status or assigned user",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Page number",
+            "schema": {
+              "default": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Items per page",
+            "schema": {
+              "default": 10,
+              "type": "number"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "description": "Filter by deal status (pending, created, won, lost)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "assigned_to",
+            "required": false,
+            "in": "query",
+            "description": "Filter by assigned user ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "stage",
+            "required": false,
+            "in": "query",
+            "description": "Filter by deal stage (NEW, PREPARATION, WON, etc.)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated deals list"
+          }
+        },
+        "tags": [
+          "Deals"
+        ],
+        "security": [
+          {
+            "x-api-key": []
+          }
+        ]
+      }
+    },
+    "/deals/{id}": {
+      "get": {
+        "operationId": "DealController_getDealById",
+        "summary": "Get detailed information about a single deal",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deal details with lead information"
+          }
+        },
+        "tags": [
+          "Deals"
+        ],
+        "security": [
+          {
+            "x-api-key": []
+          }
+        ]
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "HealthController_check",
+        "summary": "Health check endpoint for service monitoring",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Service is healthy"
+          }
+        },
+        "tags": [
+          "Health"
+        ]
+      }
+    },
+    "/webhooks/tiktok/leads": {
+      "post": {
+        "operationId": "TikTokWebhookController_handleLeadWebhook",
+        "summary": "Receive TikTok Lead Generation webhook events",
+        "parameters": [
+          {
+            "name": "tiktok-signature",
+            "in": "header",
+            "description": "HMAC-SHA256 signature generated by TikTok using your secret token",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TikTokWebhookDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Webhook event received and accepted"
+          },
+          "401": {
+            "description": "Invalid or missing signature"
+          }
+        },
+        "tags": [
+          "Webhooks"
+        ]
+      }
+    },
+    "/analytics/conversion-rates": {
+      "get": {
+        "operationId": "AnalyticsController_getConversionRates",
+        "summary": "Get overall conversion rates from TikTok leads to Deal won",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Funnel metrics and percentage conversion rates"
+          }
+        },
+        "tags": [
+          "Analytics"
+        ],
+        "security": [
+          {
+            "x-api-key": []
+          }
+        ]
+      }
+    },
+    "/analytics/campaign-performance": {
+      "get": {
+        "operationId": "AnalyticsController_getCampaignPerformance",
+        "summary": "Get campaign-level metrics: CPL, Revenue, ROI and Quality Score",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Campaign performance list"
+          }
+        },
+        "tags": [
+          "Analytics"
+        ],
+        "security": [
+          {
+            "x-api-key": []
+          }
+        ]
+      }
+    },
+    "/reports/export": {
+      "get": {
+        "operationId": "ReportController_exportReport",
+        "summary": "Export lead and deal data to CSV or JSON format",
+        "parameters": [
+          {
+            "name": "date_range",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "7d",
+                "30d",
+                "90d",
+                "all"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "format",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "csv",
+                "excel",
+                "json"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Exported file stream or JSON data"
+          }
+        },
+        "tags": [
+          "Reports"
+        ],
+        "security": [
+          {
+            "x-api-key": []
+          }
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "TikTok Lead Generation → Bitrix24 CRM Integration API",
+    "description": "Automated bidirectional integration engine between TikTok Lead Generation Forms and Bitrix24 CRM with BullMQ queues, dynamic rule engines, deduplication, and analytics.",
+    "version": "1.0.0",
+    "contact": {}
+  },
+  "tags": [
+    {
+      "name": "Webhooks",
+      "description": "Incoming webhook receivers for TikTok and Bitrix24"
+    },
+    {
+      "name": "Leads",
+      "description": "Lead management and querying"
+    },
+    {
+      "name": "Deals",
+      "description": "Deal conversion and querying"
+    },
+    {
+      "name": "Configuration",
+      "description": "Runtime field mapping and deal rule management"
+    },
+    {
+      "name": "Analytics",
+      "description": "Conversion rates, ROI, and campaign metrics"
+    },
+    {
+      "name": "Reports",
+      "description": "Data export to CSV / JSON"
+    },
+    {
+      "name": "Health",
+      "description": "Service health check"
+    }
+  ],
+  "servers": [],
+  "components": {
+    "securitySchemes": {
+      "x-api-key": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-api-key",
+        "description": "Management API Key for administrative endpoints"
+      }
+    },
+    "schemas": {
+      "BatchMigrateDto": {
+        "type": "object",
+        "properties": {
+          "batchSize": {
+            "type": "number",
+            "description": "Number of leads per batch",
+            "default": 50
+          },
+          "limit": {
+            "type": "number",
+            "description": "Maximum total leads to migrate in this job",
+            "default": 1000
+          },
+          "forceReSync": {
+            "type": "boolean",
+            "description": "Force re-sync of already synced leads",
+            "default": false
+          },
+          "dateFrom": {
+            "type": "string",
+            "description": "Optional start date filter (ISO string)"
+          },
+          "dateTo": {
+            "type": "string",
+            "description": "Optional end date filter (ISO string)"
+          }
+        }
+      },
+      "ConvertLeadDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "Custom deal title override"
+          },
+          "pipeline_id": {
+            "type": "string",
+            "description": "Pipeline funnel ID (default: 0)"
+          },
+          "stage_id": {
+            "type": "string",
+            "description": "Target stage ID (e.g. NEW, PREPARATION)"
+          },
+          "amount": {
+            "type": "number",
+            "description": "Deal opportunity amount in VND"
+          },
+          "currency": {
+            "type": "string",
+            "description": "Currency (default: VND)"
+          },
+          "probability": {
+            "type": "number",
+            "description": "Win probability percentage (0-100)"
+          },
+          "assigned_to": {
+            "type": "string",
+            "description": "Assigned Bitrix24 user ID"
+          }
+        }
+      },
+      "UpdateMappingDto": {
+        "type": "object",
+        "properties": {
+          "field_mapping": {
+            "type": "object",
+            "description": "Field mapping dictionary from TikTok payload paths to Bitrix24 fields",
+            "example": {
+              "lead_data.full_name": "NAME",
+              "lead_data.email": "EMAIL[0][VALUE]",
+              "lead_data.phone": "PHONE[0][VALUE]",
+              "lead_data.city": "UF_CRM_CITY",
+              "campaign.campaign_name": "UF_CRM_UTM_CAMPAIGN"
+            }
+          },
+          "merge_strategy": {
+            "type": "string",
+            "description": "Merge strategy when updating existing leads: OVERWRITE_EMPTY | ALWAYS_OVERWRITE | KEEP_EXISTING",
+            "example": "OVERWRITE_EMPTY"
+          }
+        },
+        "required": [
+          "field_mapping"
+        ]
+      },
+      "UpdateRulesDto": {
+        "type": "object",
+        "properties": {
+          "deal_rules": {
+            "description": "Array of deal conversion rules evaluated against incoming leads",
+            "example": [
+              {
+                "id": "rule_spring_sale",
+                "condition": "campaign.campaign_name CONTAINS 'sale'",
+                "action": "create_deal",
+                "pipeline_id": "1",
+                "stage_id": "NEW",
+                "probability": 30
+              }
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "deal_rules"
+        ]
+      },
+      "TikTokWebhookDto": {
+        "type": "object",
+        "properties": {
+          "event": {
+            "type": "string",
+            "example": "lead.generate",
+            "description": "Event action name"
+          },
+          "event_id": {
+            "type": "string",
+            "example": "evt_1234567890",
+            "description": "Unique TikTok event ID"
+          },
+          "timestamp": {
+            "type": "number",
+            "example": 1709876543,
+            "description": "Timestamp of event"
+          },
+          "advertiser_id": {
+            "type": "string",
+            "example": "7123456789",
+            "description": "Advertiser account ID"
+          },
+          "campaign": {
+            "type": "object",
+            "description": "Campaign metadata"
+          },
+          "form": {
+            "type": "object",
+            "description": "Form metadata"
+          },
+          "lead_data": {
+            "type": "object",
+            "description": "Lead form submitted data"
+          },
+          "custom_questions": {
+            "description": "Custom form question answers",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "event",
+          "event_id",
+          "lead_data"
+        ]
+      }
+    }
+  }
+}

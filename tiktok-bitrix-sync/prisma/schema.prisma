@@ -1,0 +1,172 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model WebhookEvent {
+  id           String    @id @default(uuid()) @db.Uuid
+  eventId      String    @unique @map("event_id") @db.VarChar(255)
+  eventType    String    @map("event_type") @db.VarChar(100)
+  source       String    @default("tiktok") @db.VarChar(50)
+  payload      Json      @map("payload")
+  status       String    @default("pending") @db.VarChar(50)
+  errorMessage String?   @map("error_message") @db.Text
+  processedAt  DateTime? @map("processed_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  @@index([status])
+  @@index([createdAt])
+  @@index([eventType])
+  @@map("webhook_events")
+}
+
+model Lead {
+  id              String     @id @default(uuid()) @db.Uuid
+  externalId      String     @unique @map("external_id") @db.VarChar(255)
+  source          String     @default("tiktok") @db.VarChar(50)
+  name            String     @db.VarChar(255)
+  email           String?    @db.VarChar(255)
+  phone           String?    @db.VarChar(50)
+  campaignId      String?    @map("campaign_id") @db.VarChar(255)
+  campaignName    String?    @map("campaign_name") @db.VarChar(255)
+  adId            String?    @map("ad_id") @db.VarChar(255)
+  adName          String?    @map("ad_name") @db.VarChar(255)
+  formId          String?    @map("form_id") @db.VarChar(255)
+  formName        String?    @map("form_name") @db.VarChar(255)
+  city            String?    @db.VarChar(255)
+  interests       Json?      @map("interests")
+  customQuestions Json?      @map("custom_questions")
+  ttclid          String?    @db.VarChar(255)
+  utmSource       String?    @map("utm_source") @db.VarChar(100)
+  utmMedium       String?    @map("utm_medium") @db.VarChar(100)
+  utmCampaign     String?    @map("utm_campaign") @db.VarChar(100)
+  utmContent      String?    @map("utm_content") @db.VarChar(100)
+  utmTerm         String?    @map("utm_term") @db.VarChar(100)
+  rawData         Json       @map("raw_data")
+  bitrix24Id      Int?       @map("bitrix24_id")
+  status          String     @default("new") @db.VarChar(50)
+  qualityScore    Int        @default(0) @map("quality_score")
+  syncVersion     Int        @default(1) @map("sync_version")
+  syncError       String?    @map("sync_error") @db.Text
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
+
+  deals     Deal[]
+  auditLogs AuditLog[]
+
+  @@index([email])
+  @@index([phone])
+  @@index([campaignId])
+  @@index([status])
+  @@index([qualityScore])
+  @@index([bitrix24Id])
+  @@index([createdAt])
+  @@map("leads")
+}
+
+model Deal {
+  id                 String    @id @default(uuid()) @db.Uuid
+  leadId             String    @map("lead_id") @db.Uuid
+  lead               Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  ruleId             String    @default("default") @map("rule_id") @db.VarChar(100)
+  bitrix24Id         Int?      @map("bitrix24_id")
+  title              String    @db.VarChar(255)
+  pipelineId         String    @default("0") @map("pipeline_id") @db.VarChar(50)
+  stage              String    @default("NEW") @db.VarChar(50)
+  amount             Decimal?  @db.Decimal(10, 2)
+  currency           String    @default("VND") @db.VarChar(3)
+  probability        Int       @default(0)
+  assignedTo         String?   @map("assigned_to") @db.VarChar(100)
+  conversionMetadata Json?     @map("conversion_metadata")
+  status             String    @default("pending") @db.VarChar(50)
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  @@unique([leadId, ruleId])
+  @@index([bitrix24Id])
+  @@index([stage])
+  @@index([status])
+  @@index([createdAt])
+  @@map("deals")
+}
+
+model Configuration {
+  id        Int      @id @default(autoincrement())
+  key       String   @unique @db.VarChar(255)
+  value     Json
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("configurations")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  leadId     String?  @map("lead_id") @db.Uuid
+  lead       Lead?    @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  action     String   @db.VarChar(100)
+  entityType String   @map("entity_type") @db.VarChar(50)
+  entityId   String?  @map("entity_id") @db.VarChar(255)
+  details    Json?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([leadId])
+  @@index([action])
+  @@index([entityType])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model CampaignMetric {
+  id             String   @id @default(uuid()) @db.Uuid
+  campaignId     String   @unique @map("campaign_id") @db.VarChar(255)
+  campaignName   String   @map("campaign_name") @db.VarChar(255)
+  totalLeads     Int      @default(0) @map("total_leads")
+  syncedLeads    Int      @default(0) @map("synced_leads")
+  convertedDeals Int      @default(0) @map("converted_deals")
+  wonDeals       Int      @default(0) @map("won_deals")
+  totalRevenue   Decimal  @default(0) @map("total_revenue") @db.Decimal(12, 2)
+  estimatedCost  Decimal  @default(0) @map("estimated_cost") @db.Decimal(12, 2)
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@map("campaign_metrics")
+}
+
+model SyncJob {
+  id             String    @id @default(uuid()) @db.Uuid
+  jobType        String    @map("job_type") @db.VarChar(100)
+  status         String    @default("pending") @db.VarChar(50)
+  progress       Int       @default(0)
+  totalItems     Int       @default(0) @map("total_items")
+  processedItems Int       @default(0) @map("processed_items")
+  failedItems    Int       @default(0) @map("failed_items")
+  metadata       Json?
+  errorDetails   Json?     @map("error_details")
+  startedAt      DateTime? @map("started_at")
+  completedAt    DateTime? @map("completed_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  @@map("sync_jobs")
+}
+
+model DlqRecord {
+  id           String    @id @default(uuid()) @db.Uuid
+  queueName    String    @map("queue_name") @db.VarChar(100)
+  jobId        String    @map("job_id") @db.VarChar(255)
+  jobName      String    @map("job_name") @db.VarChar(100)
+  payload      Json
+  errorMessage String    @map("error_message") @db.Text
+  stackTrace   String?   @map("stack_trace") @db.Text
+  attempts     Int       @default(0)
+  resolved     Boolean   @default(false)
+  resolvedAt   DateTime? @map("resolved_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  @@index([queueName])
+  @@index([resolved])
+  @@index([createdAt])
+  @@map("dlq_records")
+}
