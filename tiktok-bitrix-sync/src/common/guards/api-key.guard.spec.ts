@@ -45,4 +45,32 @@ describe('ApiKeyGuard', () => {
     const ctx = createMockContext({ 'x-api-key': 'wrong-key' });
     expect(() => guard.canActivate(ctx)).toThrow(UnauthorizedException);
   });
+
+  it('should throw UnauthorizedException if API key is not configured on server', () => {
+    const unconfiguredGuard = new ApiKeyGuard(
+      mockReflector as Reflector,
+      { get: jest.fn().mockReturnValue('') } as any as ConfigService,
+    );
+    mockReflector.getAllAndOverride.mockReturnValueOnce(false);
+    const ctx = createMockContext({ 'x-api-key': 'any-key' });
+    expect(() => unconfiguredGuard.canActivate(ctx)).toThrow('API key is not configured on server');
+  });
+
+  it('should allow access with uppercase X-API-KEY header', () => {
+    mockReflector.getAllAndOverride.mockReturnValueOnce(false);
+    const ctx = createMockContext({ 'X-API-KEY': 'valid-secret-key' });
+    expect(guard.canActivate(ctx)).toBe(true);
+  });
+
+  it('should throw UnauthorizedException if header is completely missing', () => {
+    mockReflector.getAllAndOverride.mockReturnValueOnce(false);
+    const ctx = createMockContext({});
+    expect(() => guard.canActivate(ctx)).toThrow(UnauthorizedException);
+  });
+
+  it('should throw UnauthorizedException if key has different length than configured key', () => {
+    mockReflector.getAllAndOverride.mockReturnValueOnce(false);
+    const ctx = createMockContext({ 'x-api-key': 'short' });
+    expect(() => guard.canActivate(ctx)).toThrow(UnauthorizedException);
+  });
 });

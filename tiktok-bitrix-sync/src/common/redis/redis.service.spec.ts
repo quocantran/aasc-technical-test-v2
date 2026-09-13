@@ -1,4 +1,5 @@
 import { ConfigService } from '@nestjs/config';
+import Redis from 'ioredis';
 import { RedisService } from './redis.service';
 
 jest.mock('ioredis', () => {
@@ -192,6 +193,61 @@ describe('RedisService', () => {
       clientMock.quit.mockRejectedValueOnce(new Error('Quit error'));
       await service.onModuleDestroy();
       expect(clientMock.disconnect).toHaveBeenCalled();
+    });
+  });
+
+  describe('retryStrategy and connection events', () => {
+    it('should trigger retryStrategy calculation and error listener', () => {
+      const RedisConstructor = Redis as unknown as jest.Mock;
+      const passedOpts = RedisConstructor.mock.calls[0][0];
+      expect(passedOpts.retryStrategy(1)).toBe(100);
+      expect(passedOpts.retryStrategy(50)).toBe(3000);
+
+      const onCall = clientMock.on.mock.calls.find((c: any) => c[0] === 'error');
+      if (onCall && typeof onCall[1] === 'function') {
+        onCall[1](new Error('Simulated event error'));
+        expect(mockLogger.warn).toHaveBeenCalledWith(
+          expect.stringContaining('Simulated event error'),
+          'RedisService',
+        );
+      }
+    });
+
+    it('should handle connect rejection and default options when config is empty', async () => {
+      const RedisConstructor = Redis as unknown as jest.Mock;
+      const mockWarn = jest.fn();
+      RedisConstructor.mockImplementationOnce(() => ({
+        on: jest.fn(),
+        connect: jest.fn().mockRejectedValue(new Error('Connect failed')),
+      }));
+
+      const customLogger = { warn: mockWarn, error: jest.fn(), log: jest.fn(), debug: jest.fn() };
+      const emptyConfig = { get: jest.fn().mockReturnValue(undefined) } as any;
+
+      const fallbackService = new RedisService(emptyConfig, customLogger as any);
+      expect(fallbackService).toBeDefined();
+
+      // Wait a microtask tick for .catch to execute
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(mockWarn).toHaveBeenCalledWith(
+        expect.stringContaining('Initial Redis connection failed: Connect failed'),
+        'RedisService',
+      );
+    });
+
+    it('should instantiate with default AppLogger when logger is not provided', () => {
+      const fallbackService = new RedisService(mockConfigService as any);
+      expect(fallbackService).toBeDefined();
+    });
+
+    it('should call set without EX when ttlSeconds is <= 0', async () => {
+      clientMock.set.mockResolvedValueOnce('OK');
+      await service.set('non-ttl-key', 'val', 0);
+      expect(clientMock.set).toHaveBeenCalledWith('non-ttl-key', 'val');
+
+      clientMock.set.mockResolvedValueOnce('OK');
+      await service.set('non-ttl-key-2', 'val', -10);
+      expect(clientMock.set).toHaveBeenCalledWith('non-ttl-key-2', 'val');
     });
   });
 });

@@ -68,4 +68,19 @@ describe('DealConversionWorker', () => {
       }),
     );
   });
+
+  it('should not record to DLQ on intermediate failure when retry attempts remain', async () => {
+    mockDealConversionService.convertLeadToDeal.mockRejectedValueOnce(new Error('Transient network error'));
+
+    const job: any = {
+      id: 'deal-job-retry',
+      name: 'evaluate-deal-rules',
+      data: { leadId: 'lead-retry' },
+      opts: {}, // attempts fallback to 3
+      attemptsMade: 0, // 0 + 1 = 1 < 3
+    };
+
+    await expect(worker.process(job)).rejects.toThrow('Transient network error');
+    expect(mockPrisma.dlqRecord.create).not.toHaveBeenCalled();
+  });
 });

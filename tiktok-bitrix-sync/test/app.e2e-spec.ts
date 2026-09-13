@@ -47,6 +47,7 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/database/prisma.service';
+import { RedisService } from '../src/common/redis/redis.service';
 
 describe('TikTok to Bitrix24 Sync Application (E2E)', () => {
   let app: INestApplication;
@@ -75,6 +76,7 @@ describe('TikTok to Bitrix24 Sync Application (E2E)', () => {
               name: 'Nguyen Van E2E',
               email: 'e2e@example.com',
               phone: '+84901234567',
+              bitrix24Id: 1039,
               status: 'synced',
               createdAt: new Date(),
               deals: [{ id: 'deal-uuid-1', amount: 5000000 }],
@@ -83,31 +85,65 @@ describe('TikTok to Bitrix24 Sync Application (E2E)', () => {
           }
           return null;
         },
-        findFirst: async () => null,
+        findFirst: async ({ where }: any) => {
+          if (where?.bitrix24Id === 1039 || where?.OR?.some((c: any) => c.bitrix24Id === 1039)) {
+            return {
+              id: 'lead-uuid-1',
+              externalId: 'evt_lead_1',
+              name: 'Nguyen Van E2E',
+              email: 'e2e@example.com',
+              phone: '+84901234567',
+              bitrix24Id: 1039,
+              status: 'synced',
+              createdAt: new Date(),
+              deals: [{ id: 'deal-uuid-1', amount: 5000000 }],
+              rawData: {},
+            };
+          }
+          return null;
+        },
         create: async ({ data }: any) => ({ id: 'lead-uuid-1', ...data }),
-        findMany: async () => [
-          {
-            id: 'lead-uuid-1',
-            externalId: 'evt_lead_1',
-            name: 'Nguyen Van E2E',
-            email: 'e2e@example.com',
-            phone: '+84901234567',
-            status: 'synced',
-            createdAt: new Date(),
-            deals: [{ id: 'deal-uuid-1', amount: 5000000 }],
-          },
-        ],
+        findMany: async ({ skip }: any) => {
+          if (skip && skip >= 10) return [];
+          return [
+            {
+              id: 'lead-uuid-1',
+              externalId: 'evt_lead_1',
+              name: 'Nguyen Van E2E',
+              email: 'e2e@example.com',
+              phone: '+84901234567',
+              status: 'synced',
+              createdAt: new Date(),
+              deals: [{ id: 'deal-uuid-1', amount: 5000000 }],
+            },
+          ];
+        },
         count: async () => 1,
         update: async ({ data }: any) => ({ id: 'lead-uuid-1', ...data }),
       },
       deal: {
-        findFirst: async () => ({
-          id: 'deal-uuid-1',
-          bitrix24Id: 5001,
-          status: 'created',
-          stage: 'NEW',
-          lead: { id: 'lead-uuid-1' },
-        }),
+        findFirst: async ({ where }: any) => {
+          if (where?.bitrix24Id === 12345678) {
+            return null;
+          }
+          if (where?.bitrix24Id === 5001) {
+            return {
+              id: 'deal-uuid-1',
+              title: 'E2E Deal',
+              bitrix24Id: 5001,
+              status: 'created',
+              stage: 'NEW',
+              lead: { id: 'lead-uuid-1' },
+            };
+          }
+          return {
+            id: 'deal-uuid-1',
+            bitrix24Id: 5001,
+            status: 'created',
+            stage: 'NEW',
+            lead: { id: 'lead-uuid-1' },
+          };
+        },
         findUnique: async ({ where }: any) => {
           if (where?.id === 'deal-uuid-1') {
             return {
@@ -195,18 +231,41 @@ describe('TikTok to Bitrix24 Sync Application (E2E)', () => {
       },
       syncJob: {
         create: async ({ data }: any) => ({ id: 'sync-job-123', ...data }),
-        findUnique: async ({ where }: any) => ({
-          id: where?.id || 'sync-job-123',
-          jobType: 'HISTORICAL_BATCH_MIGRATION',
-          status: 'completed',
-          progress: 100,
-          totalItems: 1,
-          processedItems: 1,
-          failedItems: 0,
-        }),
+        findUnique: async ({ where }: any) => {
+          if (where?.id === 'sync-job-123') {
+            return {
+              id: 'sync-job-123',
+              jobType: 'HISTORICAL_BATCH_MIGRATION',
+              status: 'completed',
+              progress: 100,
+              totalItems: 1,
+              processedItems: 1,
+              failedItems: 0,
+            };
+          }
+          return null;
+        },
         update: async ({ data }: any) => ({ id: 'sync-job-123', ...data }),
       },
       $transaction: async (ops: any[]) => Promise.all(ops),
+    };
+
+    // Override RedisService with an in-memory mock to isolate test run from external Redis service
+    const mockRedis = {
+      getClient: () => ({
+        eval: async () => 1,
+        get: async () => null,
+        set: async () => 'OK',
+        del: async () => 1,
+      }),
+      get: async () => null,
+      set: async () => {},
+      setNxWithTtl: async () => true,
+      del: async () => {},
+      incrWithTtl: async () => 1,
+      acquireLock: async () => true,
+      releaseLock: async () => true,
+      onModuleDestroy: async () => {},
     };
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -214,6 +273,8 @@ describe('TikTok to Bitrix24 Sync Application (E2E)', () => {
     })
       .overrideProvider(PrismaService)
       .useValue(mockPrisma)
+      .overrideProvider(RedisService)
+      .useValue(mockRedis)
       .compile();
 
 
@@ -494,7 +555,7 @@ describe('TikTok to Bitrix24 Sync Application (E2E)', () => {
       .expect(200);
 
     expect(csvRes.headers['content-type']).toContain('text/csv');
-    expect(csvRes.text).toContain('ID,External ID,Name');
+    expect(csvRes.text).toContain('Mã Lead (UUID),Mã sự kiện TikTok,Họ và tên khách hàng');
   });
 
   // Config Endpoints
@@ -540,6 +601,219 @@ describe('TikTok to Bitrix24 Sync Application (E2E)', () => {
       .expect(200);
 
     expect(putRes.body.success).toBe(true);
+  });
+
+  // ==========================================
+  // COMPREHENSIVE EDGE CASES SUITE
+  // ==========================================
+  describe('Comprehensive API Edge Cases & Boundary Conditions', () => {
+    // 1. Numeric ID & Invalid UUID Lookup Edge Cases (Preventing P2023 500 crashes)
+    it('GET /api/v1/leads/1039 should find lead by Bitrix numeric ID', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/leads/1039')
+        .set('x-api-key', 'aasc-secure-api-key-2026')
+        .expect(200);
+
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.bitrix24Id).toBe(1039);
+    });
+
+    it('GET /api/v1/leads/invalid-uuid-abc-123 should return 404 without crashing', async () => {
+      await request(app.getHttpServer())
+        .get('/api/v1/leads/invalid-uuid-abc-123')
+        .set('x-api-key', 'aasc-secure-api-key-2026')
+        .expect(404);
+    });
+
+    it('GET /api/v1/deals/5001 should find deal by Bitrix numeric Deal ID', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/deals/5001')
+        .set('x-api-key', 'aasc-secure-api-key-2026')
+        .expect(200);
+
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.bitrix24Id).toBe(5001);
+    });
+
+    it('GET /api/v1/deals/12345678 should return 404 when Bitrix Deal ID not found', async () => {
+      await request(app.getHttpServer())
+        .get('/api/v1/deals/12345678')
+        .set('x-api-key', 'aasc-secure-api-key-2026')
+        .expect(404);
+    });
+
+    it('GET /api/v1/leads/batch-migrate/12 (Numeric/Non-UUID jobId) should return 404 instead of 500 P2023', async () => {
+      await request(app.getHttpServer())
+        .get('/api/v1/leads/batch-migrate/12')
+        .set('x-api-key', 'aasc-secure-api-key-2026')
+        .expect(404);
+    });
+
+    it('GET /api/v1/leads/batch-migrate/non-existent-job-uuid should return 404 Not Found', async () => {
+      await request(app.getHttpServer())
+        .get('/api/v1/leads/batch-migrate/non-existent-job-uuid')
+        .set('x-api-key', 'aasc-secure-api-key-2026')
+        .expect(404);
+    });
+
+    // 2. DTO Validation & Bad Request (400) Edge Cases
+    it('POST /api/v1/leads/batch-migrate should reject batchSize > 200 with 400 Bad Request', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/leads/batch-migrate')
+        .set('x-api-key', 'aasc-secure-api-key-2026')
+        .send({ batchSize: 500 })
+        .expect(400);
+
+      expect(res.body.error).toBeDefined();
+    });
+
+    it('POST /api/v1/leads/batch-migrate should reject batchSize < 1 with 400 Bad Request', async () => {
+      await request(app.getHttpServer())
+        .post('/api/v1/leads/batch-migrate')
+        .set('x-api-key', 'aasc-secure-api-key-2026')
+        .send({ batchSize: 0 })
+        .expect(400);
+    });
+
+    it('POST /api/v1/leads/batch-migrate should reject invalid dateFrom format with 400 Bad Request', async () => {
+      await request(app.getHttpServer())
+        .post('/api/v1/leads/batch-migrate')
+        .set('x-api-key', 'aasc-secure-api-key-2026')
+        .send({ dateFrom: 'not-a-valid-date' })
+        .expect(400);
+    });
+
+    it('POST /api/v1/leads/non-existent/convert-to-deal should return 404 Not Found', async () => {
+      await request(app.getHttpServer())
+        .post('/api/v1/leads/non-existent-lead-uuid/convert-to-deal')
+        .set('x-api-key', 'aasc-secure-api-key-2026')
+        .send({ title: 'Deal Non-Existent' })
+        .expect(404);
+    });
+
+    it('POST /api/v1/leads/1039/convert-to-deal should convert using Bitrix Lead ID', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/leads/1039/convert-to-deal')
+        .set('x-api-key', 'aasc-secure-api-key-2026')
+        .send({ title: 'Deal via Bitrix ID' })
+        .expect(201);
+
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.converted).toBe(true);
+    });
+
+    it('POST /api/v1/leads/lead-uuid-1/convert-to-deal should reject invalid amount with 400 Bad Request', async () => {
+      await request(app.getHttpServer())
+        .post('/api/v1/leads/lead-uuid-1/convert-to-deal')
+        .set('x-api-key', 'aasc-secure-api-key-2026')
+        .send({ amount: 'invalid-string-amount' as any })
+        .expect(400);
+    });
+
+    // 3. Export Reports Formats & MIME Edge Cases
+    it('GET /api/v1/reports/export with no format param should default to Excel (.xlsx)', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/reports/export')
+        .set('x-api-key', 'aasc-secure-api-key-2026')
+        .expect(200);
+
+      expect(res.headers['content-type']).toContain(
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      );
+      expect(res.headers['content-disposition']).toContain('.xlsx');
+    });
+
+    it('GET /api/v1/reports/export?format=excel should stream genuine Excel (.xlsx)', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/reports/export?format=excel&date_range=all')
+        .set('x-api-key', 'aasc-secure-api-key-2026')
+        .expect(200);
+
+      expect(res.headers['content-type']).toContain(
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      );
+    });
+
+    it('GET /api/v1/reports/export?format=unknown_format should fallback safely to Excel (.xlsx)', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/reports/export?format=unsupported')
+        .set('x-api-key', 'aasc-secure-api-key-2026')
+        .expect(200);
+
+      expect(res.headers['content-type']).toContain(
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      );
+    });
+
+    // 4. Multi-Event TikTok Webhooks
+    it('POST /webhooks/tiktok/leads should accept form.complete event', async () => {
+      const payload = {
+        event: 'form.complete',
+        event_id: 'evt_form_complete_e2e',
+        lead_data: { full_name: 'Form Completer', phone: '+84909999999' },
+      };
+      const secret = process.env.TIKTOK_SECRET_TOKEN || 'tiktok_secret_token_12345';
+      const signature = crypto.createHmac('sha256', secret).update(JSON.stringify(payload)).digest('hex');
+
+      const res = await request(app.getHttpServer())
+        .post('/webhooks/tiktok/leads')
+        .set('tiktok-signature', signature)
+        .send(payload)
+        .expect(201);
+
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.status).toBe('accepted');
+    });
+
+    it('POST /webhooks/tiktok/leads should accept user.interaction event', async () => {
+      const payload = {
+        event: 'user.interaction',
+        event_id: 'evt_user_interaction_e2e',
+        lead_data: { full_name: 'User Interactor' },
+      };
+      const secret = process.env.TIKTOK_SECRET_TOKEN || 'tiktok_secret_token_12345';
+      const signature = crypto.createHmac('sha256', secret).update(JSON.stringify(payload)).digest('hex');
+
+      const res = await request(app.getHttpServer())
+        .post('/webhooks/tiktok/leads')
+        .set('tiktok-signature', signature)
+        .send(payload)
+        .expect(201);
+
+      expect(res.body.success).toBe(true);
+    });
+
+    it('POST /webhooks/bitrix24/deals should safely ignore payloads with missing deal ID', async () => {
+      const bitrixSecret =
+        process.env.BITRIX_INBOUND_WEBHOOK_SECRET ||
+        process.env.BITRIX_OUTBOUND_SECRET ||
+        '';
+
+      const payload = {
+        event: 'ONCRMDEALUPDATE',
+        data: {},
+        auth: { application_token: bitrixSecret },
+      };
+
+      const res = await request(app.getHttpServer())
+        .post('/webhooks/bitrix24/deals')
+        .send(payload)
+        .expect(200);
+
+      expect(res.body.data.status).toBe('ignored');
+      expect(res.body.data.reason).toContain('Missing deal ID');
+    });
+
+    // 5. Pagination Boundary Edge Cases
+    it('GET /api/v1/leads with high page number should safely return empty array', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/leads?page=9999&limit=10')
+        .set('x-api-key', 'aasc-secure-api-key-2026')
+        .expect(200);
+
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.data).toEqual([]);
+    });
   });
 });
 

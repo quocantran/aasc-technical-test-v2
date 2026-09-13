@@ -59,7 +59,7 @@ describe('ReportExportService', () => {
       const csv = await service.exportLeads('csv', '7d');
 
       expect(csv).toContain('\uFEFF');
-      expect(csv).toContain('ID,External ID,Name');
+      expect(csv).toContain('Mã Lead (UUID),Mã sự kiện TikTok,Họ và tên khách hàng');
       expect(csv).toContain('Nguyen Van A');
       expect(csv).toContain('5000000');
     });
@@ -130,7 +130,10 @@ describe('ReportExportService', () => {
       };
 
       await service.streamCsvExport(mockRes, '7d', true);
-      expect(mockRes.setHeader).toHaveBeenCalledWith('Content-Type', 'application/vnd.ms-excel; charset=utf-8');
+      expect(mockRes.setHeader).toHaveBeenCalledWith(
+        'Content-Type',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      );
     });
 
     it('should handle export with custom or undefined dateRange and without deals', async () => {
@@ -194,6 +197,87 @@ describe('ReportExportService', () => {
 
       await service.streamCsvExport(mockRes, 'all', false);
       expect(mockRes.setHeader).toHaveBeenCalled();
+    });
+
+    it('should stream Excel with data and format custom questions and deals', async () => {
+      const sampleWithQuestions = {
+        id: 'lead-excel-1',
+        externalId: 'ext-excel-1',
+        name: 'Nguyen Van Excel',
+        phone: '+84901111111',
+        email: 'excel@example.com',
+        city: 'Da Nang',
+        campaignName: 'Campaign Excel',
+        adName: 'Ad Excel',
+        formName: 'Form Excel',
+        qualityScore: 90,
+        bitrix24Id: 999,
+        status: 'synced',
+        createdAt: new Date('2026-09-01T12:00:00Z'),
+        customQuestions: [
+          { question: 'Budget', answer: '10M' },
+          { question: 'Need', answer: 'Consulting' },
+        ],
+        deals: [{ bitrix24Id: 888, title: 'Excel Deal', stage: 'WON', amount: 10000000 }],
+      };
+
+      const sampleWithObjectQuestions = {
+        id: 'lead-excel-2',
+        externalId: 'ext-excel-2',
+        name: 'Tran Thi Excel',
+        phone: '+84902222222',
+        email: 'excel2@example.com',
+        createdAt: '2026-09-02T12:00:00Z',
+        customQuestions: { note: 'Direct contact requested' },
+        deals: [],
+      };
+
+      mockPrisma.lead.findMany.mockResolvedValueOnce([sampleWithQuestions, sampleWithObjectQuestions]);
+
+      const mockRes = {
+        setHeader: jest.fn(),
+        write: jest.fn(),
+        on: jest.fn(),
+        once: jest.fn(),
+        emit: jest.fn(),
+        end: jest.fn(),
+      };
+
+      await service.streamExcelExport(mockRes, '30d');
+      expect(mockRes.setHeader).toHaveBeenCalledWith(
+        'Content-Type',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      );
+      expect(mockRes.end).toHaveBeenCalled();
+    });
+
+    it('should stream Excel with dateRange 90d', async () => {
+      mockPrisma.lead.findMany.mockResolvedValueOnce([]);
+      const mockRes = {
+        setHeader: jest.fn(),
+        write: jest.fn(),
+        end: jest.fn(),
+      };
+
+      await service.streamExcelExport(mockRes, '90d');
+      expect(mockRes.setHeader).toHaveBeenCalled();
+      expect(mockRes.end).toHaveBeenCalled();
+    });
+
+    it('should export leads CSV with date ranges 30d and custom questions as object', async () => {
+      mockPrisma.lead.findMany.mockResolvedValueOnce([
+        {
+          id: 'lead-csv-obj',
+          name: 'Le Van C',
+          customQuestions: { service: 'Audit' },
+          deals: [],
+          createdAt: new Date(),
+        },
+      ]);
+
+      const csv = await service.exportLeads('csv', '30d');
+      expect(csv).toContain('Le Van C');
+      expect(csv).toContain('Audit');
     });
   });
 });

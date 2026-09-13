@@ -242,13 +242,40 @@ export class LeadService {
   }
 
   async findById(id: string) {
-    const lead = await this.prisma.lead.findUnique({
-      where: { id },
-      include: {
-        deals: true,
-        auditLogs: { orderBy: { createdAt: 'desc' }, take: 20 },
-      },
-    });
+    let lead = null;
+    try {
+      lead = await this.prisma.lead.findUnique({
+        where: { id },
+        include: {
+          deals: true,
+          auditLogs: { orderBy: { createdAt: 'desc' }, take: 20 },
+        },
+      });
+    } catch (err: any) {
+      if (err?.code === 'P2023') {
+        lead = null;
+      } else {
+        throw err;
+      }
+    }
+
+    if (!lead && typeof this.prisma.lead.findFirst === 'function') {
+      const isNumber = /^\d+$/.test(id);
+      try {
+        lead = await this.prisma.lead.findFirst({
+          where: {
+            OR: [
+              { externalId: id },
+              ...(isNumber ? [{ bitrix24Id: parseInt(id, 10) }] : []),
+            ],
+          },
+          include: {
+            deals: true,
+            auditLogs: { orderBy: { createdAt: 'desc' }, take: 20 },
+          },
+        });
+      } catch {}
+    }
 
     if (!lead) {
       throw new NotFoundException(`Lead with ID ${id} not found`);

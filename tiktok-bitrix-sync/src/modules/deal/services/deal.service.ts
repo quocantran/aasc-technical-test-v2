@@ -23,45 +23,81 @@ export class DealService {
     if (query.stage) where.stage = query.stage;
     if (query.lead_id) where.leadId = query.lead_id;
 
-    const [total, data] = await Promise.all([
-      this.prisma.deal.count({ where }),
-      this.prisma.deal.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: { createdAt: 'desc' },
-        include: {
-          lead: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-              phone: true,
-              campaignName: true,
+    try {
+      const [total, data] = await Promise.all([
+        this.prisma.deal.count({ where }),
+        this.prisma.deal.findMany({
+          where,
+          skip,
+          take: limit,
+          orderBy: { createdAt: 'desc' },
+          include: {
+            lead: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                phone: true,
+                campaignName: true,
+              },
             },
           },
-        },
-      }),
-    ]);
+        }),
+      ]);
 
-    return {
-      data,
-      meta: {
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
-      },
-    };
+      return {
+        data,
+        meta: {
+          total,
+          page,
+          limit,
+          totalPages: Math.ceil(total / limit),
+        },
+      };
+    } catch (err: any) {
+      if (err?.code === 'P2023') {
+        return {
+          data: [],
+          meta: {
+            total: 0,
+            page,
+            limit,
+            totalPages: 0,
+          },
+        };
+      }
+      throw err;
+    }
   }
 
   async findById(id: string) {
-    const deal = await this.prisma.deal.findUnique({
-      where: { id },
-      include: {
-        lead: true,
-      },
-    });
+    let deal = null;
+    try {
+      deal = await this.prisma.deal.findUnique({
+        where: { id },
+        include: {
+          lead: true,
+        },
+      });
+    } catch (err: any) {
+      if (err?.code === 'P2023') {
+        deal = null;
+      } else {
+        throw err;
+      }
+    }
+
+    if (!deal && typeof this.prisma.deal.findFirst === 'function') {
+      const isNumber = /^\d+$/.test(id);
+      if (isNumber) {
+        try {
+          deal = await this.prisma.deal.findFirst({
+            where: { bitrix24Id: parseInt(id, 10) },
+            include: { lead: true },
+          });
+        } catch {}
+      }
+    }
 
     if (!deal) {
       throw new NotFoundException(`Deal #${id} not found`);

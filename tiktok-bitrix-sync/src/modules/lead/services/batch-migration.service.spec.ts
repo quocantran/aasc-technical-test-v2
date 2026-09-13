@@ -89,4 +89,48 @@ describe('BatchMigrationService', () => {
     mockPrisma.syncJob.findUnique.mockResolvedValueOnce(null);
     await expect(service.getJobStatus('non-existent')).rejects.toThrow();
   });
+
+  it('should handle forceReSync and date range filters', async () => {
+    mockPrisma.lead.findMany.mockResolvedValueOnce([]);
+    mockPrisma.syncJob.create.mockResolvedValueOnce({
+      id: 'sync-job-dates',
+      status: 'completed',
+      totalItems: 0,
+    });
+
+    const res = await service.startBatchMigration({
+      batchSize: 20,
+      limit: 50,
+      forceReSync: true,
+      dateFrom: '2026-01-01T00:00:00Z',
+      dateTo: '2026-02-01T00:00:00Z',
+    });
+
+    expect(res.status).toBe('completed');
+    expect(mockPrisma.lead.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          createdAt: expect.objectContaining({
+            gte: expect.any(Date),
+            lte: expect.any(Date),
+          }),
+        }),
+      }),
+    );
+  });
+
+  it('should handle P2023 malformed UUID error in getJobStatus and throw NotFoundException', async () => {
+    mockPrisma.syncJob.findUnique.mockRejectedValueOnce({
+      code: 'P2023',
+      message: 'Inconsistent column data',
+    });
+
+    await expect(service.getJobStatus('12')).rejects.toThrow('job #12 not found');
+  });
+
+  it('should rethrow unexpected database errors in getJobStatus', async () => {
+    mockPrisma.syncJob.findUnique.mockRejectedValueOnce(new Error('Fatal DB Connection Lost'));
+
+    await expect(service.getJobStatus('fatal-job')).rejects.toThrow('Fatal DB Connection Lost');
+  });
 });

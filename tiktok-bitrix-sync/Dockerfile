@@ -7,11 +7,14 @@ FROM node:22-alpine AS builder
 
 WORKDIR /usr/src/app
 
-COPY package*.json ./
+RUN apk add --no-cache openssl
 
-# Install all dependencies using BuildKit cache mount
+COPY package*.json ./
+COPY prisma ./prisma
+
+# Install all dependencies using BuildKit cache mount (ignore husky prepare in container)
 RUN --mount=type=cache,target=/root/.npm \
-    npm ci --legacy-peer-deps
+    npm ci --legacy-peer-deps --ignore-scripts
 
 COPY . .
 
@@ -20,7 +23,7 @@ RUN npx prisma generate
 RUN npm run build
 
 # Prune development dependencies to keep only production packages
-RUN npm prune --omit=dev
+RUN npm prune --omit=dev --ignore-scripts
 
 # ==============================================================================
 # Stage 2: Minimal and secure production runtime environment
@@ -29,22 +32,22 @@ FROM node:22-alpine AS production
 
 WORKDIR /usr/src/app
 
-# Install tini as PID 1 init process, wget for healthchecks, and tzdata
-RUN apk add --no-cache tini wget tzdata
+# Install tini as PID 1 init process, wget for healthchecks, tzdata and openssl
+RUN apk add --no-cache tini wget tzdata openssl
 
 # Set production environment variables and timezone
 ENV NODE_ENV=production \
     PORT=3000 \
     TZ=Asia/Ho_Chi_Minh
 
-# Copy production dependencies, compiled output, prisma schema, and swagger docs with correct ownership
-COPY --chown=node:node --from=builder /usr/src/app/node_modules ./node_modules
-COPY --chown=node:node --from=builder /usr/src/app/dist ./dist
-COPY --chown=node:node --from=builder /usr/src/app/prisma ./prisma
-COPY --chown=node:node --from=builder /usr/src/app/docs ./docs
-COPY --chown=node:node package*.json ./
+# Copy production dependencies, compiled output, prisma schema, and swagger docs directly.
+COPY --from=builder /usr/src/app/node_modules ./node_modules
+COPY --from=builder /usr/src/app/dist ./dist
+COPY --from=builder /usr/src/app/prisma ./prisma
+COPY --from=builder /usr/src/app/docs ./docs
+COPY package*.json ./
 
-# Switch to non-root user for security
+# Switch to non-root user for security compliance
 USER node
 
 EXPOSE 3000
@@ -57,3 +60,5 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
 ENTRYPOINT ["/sbin/tini", "--"]
 
 CMD ["node", "dist/main"]
+
+

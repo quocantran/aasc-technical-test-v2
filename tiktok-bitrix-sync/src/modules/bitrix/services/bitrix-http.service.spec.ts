@@ -91,6 +91,48 @@ describe('BitrixHttpService', () => {
       expect(callMethodSpy).toHaveBeenCalledWith('batch', expect.objectContaining({ halt: 0 }));
       expect(res.result).toHaveProperty('cmd1');
     });
+
+    it('should pass halt: 1 when haltOnError is true and aggregate result_error', async () => {
+      const callMethodSpy = jest.spyOn(service, 'callMethod').mockImplementation(async (_method, _params: any) => {
+        return {
+          result: {},
+          result_error: { cmdErr: { error: 'ERROR_BATCH', error_description: 'Batch item failed' } },
+        } as any;
+      });
+
+      const res = await service.executeBatch(
+        {
+          cmdErr: 'crm.lead.add?wrong=1',
+        },
+        true, // haltOnError = true
+      );
+
+      expect(callMethodSpy).toHaveBeenCalledWith('batch', expect.objectContaining({ halt: 1 }));
+      expect(res.result_error).toHaveProperty('cmdErr');
+    });
+
+    it('should fallback to error string when error_description is absent in response', async () => {
+      (service as any).httpClient = {
+        post: jest.fn().mockResolvedValue({
+          data: { error: 'QUERY_LIMIT_EXCEEDED' }, // no error_description
+        }),
+      };
+
+      await expect(service.callMethod('crm.deal.list')).rejects.toThrow(
+        'Bitrix24 Error [QUERY_LIMIT_EXCEEDED]: QUERY_LIMIT_EXCEEDED',
+      );
+    });
+
+    it('should initialize correctly with empty configService', () => {
+      const emptyConfig = { get: jest.fn().mockReturnValue(undefined) } as any;
+      const minimalService = new BitrixHttpService(
+        emptyConfig,
+        mockRetryService,
+        mockRateLimiter,
+        { debug: () => {} } as any,
+      );
+      expect(minimalService.getEndpoint('lead.get')).toBe('/lead.get.json');
+    });
   });
 });
 

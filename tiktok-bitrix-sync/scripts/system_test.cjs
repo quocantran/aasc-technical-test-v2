@@ -340,6 +340,22 @@ async function runComprehensiveSystemTest() {
     assert(resStatus.status === 200, `Migration progress status retrieved successfully`);
   }
 
+  // Test 18b: Negative Testing - Non-UUID / Invalid Job ID (Directly verifying P2023 500 prevention on real PostgreSQL)
+  try {
+    const resInvalidJob = await client.get('/api/v1/leads/batch-migrate/12', { headers: authHeaders });
+    assert(resInvalidJob.status === 404, `Invalid numeric Job ID handled safely`);
+  } catch (err) {
+    assert(err.response?.status === 404, `Negative Test Passed: Malformed Job ID "12" safely returned 404 Not Found (Prevented P2023 500 crash on real DB)`);
+  }
+
+  // Test 18c: Negative Testing - Invalid Lead ID
+  try {
+    const resInvalidLead = await client.get('/api/v1/leads/invalid-uuid-abc-123', { headers: authHeaders });
+    assert(resInvalidLead.status === 404, `Invalid Lead ID handled safely`);
+  } catch (err) {
+    assert(err.response?.status === 404, `Negative Test Passed: Malformed Lead ID safely returned 404 Not Found`);
+  }
+
   // ============================================================================
   // SUITE 7: ANALYTICS, DYNAMIC CONFIG & DATA EXPORT
   // ============================================================================

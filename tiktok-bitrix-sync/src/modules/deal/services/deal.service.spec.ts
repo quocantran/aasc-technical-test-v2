@@ -86,5 +86,37 @@ describe('DealService', () => {
     mockPrisma.deal.findUnique.mockResolvedValueOnce(null);
     await expect(service.findById('non-existent')).rejects.toThrow(NotFoundException);
   });
+
+  it('should handle P2023 error in findPaginated gracefully and return empty list', async () => {
+    mockPrisma.deal.findMany.mockRejectedValueOnce({ code: 'P2023' });
+    const res = await service.findPaginated({ lead_id: 'malformed-lead-id' });
+    expect(res.data).toEqual([]);
+    expect(res.meta.total).toBe(0);
+  });
+
+  it('should rethrow unexpected error in findPaginated', async () => {
+    mockPrisma.deal.findMany.mockRejectedValueOnce(new Error('Prisma engine crashed'));
+    await expect(service.findPaginated({})).rejects.toThrow('Prisma engine crashed');
+  });
+
+  it('should handle P2023 malformed UUID in findById and fallback to numeric Bitrix ID', async () => {
+    mockPrisma.deal.findFirst = jest.fn().mockResolvedValueOnce({
+      id: 'deal-from-bitrix',
+      bitrix24Id: 5001,
+      title: 'Deal from Bitrix',
+    });
+    mockPrisma.deal.findUnique.mockRejectedValueOnce({ code: 'P2023' });
+
+    const result = await service.findById('5001');
+    expect(result.id).toBe('deal-from-bitrix');
+    expect(mockPrisma.deal.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { bitrix24Id: 5001 } }),
+    );
+  });
+
+  it('should rethrow unexpected database error in findById', async () => {
+    mockPrisma.deal.findUnique.mockRejectedValueOnce(new Error('Fatal DB Connection Error'));
+    await expect(service.findById('fatal-uuid')).rejects.toThrow('Fatal DB Connection Error');
+  });
 });
 

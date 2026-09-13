@@ -49,7 +49,9 @@ export class AnalyticsService {
     };
 
     if (this.redisService) {
-      await this.redisService.set(cacheKey, JSON.stringify(result), 30);
+      // Anti-Cache Avalanche: Adds random jitter (0-10s) to 30s base TTL
+      const ttlWithJitter = 30 + Math.floor(Math.random() * 10);
+      await this.redisService.set(cacheKey, JSON.stringify(result), ttlWithJitter);
     }
 
     return result;
@@ -154,7 +156,9 @@ export class AnalyticsService {
     });
 
     if (this.redisService) {
-      await this.redisService.set(cacheKey, JSON.stringify(results), 30);
+      // Anti-Cache Avalanche: Adds random jitter (0-10s) to 30s base TTL
+      const ttlWithJitter = 30 + Math.floor(Math.random() * 10);
+      await this.redisService.set(cacheKey, JSON.stringify(results), ttlWithJitter);
     }
 
     return results;

@@ -45,4 +45,27 @@ describe('TikTokEventsRealAdapter', () => {
       }),
     );
   });
+
+  it('should log and rethrow error when axios post fails', async () => {
+    const mockConfig = { get: jest.fn().mockReturnValue(undefined) } as any as ConfigService;
+    const mockLogger = { log: jest.fn(), error: jest.fn() } as any as AppLogger;
+
+    (axios.post as any).mockRejectedValueOnce(new Error('Network timeout'));
+
+    const adapter = new TikTokEventsRealAdapter(mockConfig, mockLogger);
+
+    await expect(
+      adapter.sendEvent({
+        event: 'CompletePayment',
+        event_time: 123456789,
+        user: { ttclid: 'ttclid_err' },
+      }),
+    ).rejects.toThrow('Network timeout');
+
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      expect.stringContaining('Failed to send conversion event: Network timeout'),
+      expect.anything(),
+      'TikTokEventsRealAdapter',
+    );
+  });
 });

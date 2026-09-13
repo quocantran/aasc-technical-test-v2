@@ -119,9 +119,18 @@ export class BatchMigrationService {
 
   // Retrieves current status and metrics of a migration job.
   async getJobStatus(jobId: string) {
-    const job = await this.prisma.syncJob.findUnique({
-      where: { id: jobId },
-    });
+    let job = null;
+    try {
+      job = await this.prisma.syncJob.findUnique({
+        where: { id: jobId },
+      });
+    } catch (err: any) {
+      if (err?.code === 'P2023') {
+        job = null;
+      } else {
+        throw err;
+      }
+    }
 
     if (!job) {
       throw new NotFoundException(`Migration job #${jobId} not found`);

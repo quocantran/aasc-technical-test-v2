@@ -113,6 +113,88 @@ describe('PrismaClientExceptionFilter', () => {
     );
   });
 
+  it('should format P2023 inconsistent column data into 400 status', () => {
+    const filter = new PrismaClientExceptionFilter();
+    const jsonFn = jest.fn();
+    const statusFn = jest.fn().mockReturnValue({ json: jsonFn });
+
+    const host = {
+      switchToHttp: () => ({
+        getResponse: () => ({ status: statusFn }),
+      }),
+    } as any;
+
+    const exception = new Prisma.PrismaClientKnownRequestError('Inconsistent column data', {
+      code: 'P2023',
+      clientVersion: '5.22.0',
+    });
+
+    filter.catch(exception, host);
+
+    expect(statusFn).toHaveBeenCalledWith(400);
+    expect(jsonFn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        statusCode: 400,
+        code: 'P2023',
+        message: 'Invalid parameter or identifier format (expected valid UUID)',
+      }),
+    );
+  });
+
+  it('should format P2000 value too long into 400 status', () => {
+    const filter = new PrismaClientExceptionFilter();
+    const jsonFn = jest.fn();
+    const statusFn = jest.fn().mockReturnValue({ json: jsonFn });
+
+    const host = {
+      switchToHttp: () => ({
+        getResponse: () => ({ status: statusFn }),
+      }),
+    } as any;
+
+    const exception = new Prisma.PrismaClientKnownRequestError('Value too long', {
+      code: 'P2000',
+      clientVersion: '5.22.0',
+    });
+
+    filter.catch(exception, host);
+
+    expect(statusFn).toHaveBeenCalledWith(400);
+    expect(jsonFn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        statusCode: 400,
+        code: 'P2000',
+      }),
+    );
+  });
+
+  it('should format P2003 foreign key constraint into 400 status', () => {
+    const filter = new PrismaClientExceptionFilter();
+    const jsonFn = jest.fn();
+    const statusFn = jest.fn().mockReturnValue({ json: jsonFn });
+
+    const host = {
+      switchToHttp: () => ({
+        getResponse: () => ({ status: statusFn }),
+      }),
+    } as any;
+
+    const exception = new Prisma.PrismaClientKnownRequestError('FK error', {
+      code: 'P2003',
+      clientVersion: '5.22.0',
+    });
+
+    filter.catch(exception, host);
+
+    expect(statusFn).toHaveBeenCalledWith(400);
+    expect(jsonFn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        statusCode: 400,
+        code: 'P2003',
+      }),
+    );
+  });
+
   it('should handle unhandled Prisma error code with 500 status', () => {
     const filter = new PrismaClientExceptionFilter();
     const jsonFn = jest.fn();

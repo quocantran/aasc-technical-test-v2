@@ -87,4 +87,53 @@ describe('LoggingInterceptor', () => {
       },
     });
   });
+
+  it('should handle error when metricsService is undefined', (done) => {
+    const interceptor = new LoggingInterceptor();
+
+    const context = {
+      switchToHttp: () => ({
+        getRequest: () => ({ method: 'GET', url: '/api/v1/test', ip: '127.0.0.1' }),
+        getResponse: () => undefined,
+      }),
+    } as any;
+
+    const next = { handle: () => throwError(() => new Error('Generic error')) };
+
+    interceptor.intercept(context, next).subscribe({
+      error: () => {
+        done();
+      },
+    });
+  });
+
+  it('should fallback to 500 when error has no status or statusCode and split url with query params', (done) => {
+    const mockMetricsService = {
+      httpRequestsTotal: { inc: jest.fn() },
+      httpRequestDurationSeconds: { observe: jest.fn() },
+    } as any;
+
+    const interceptor = new LoggingInterceptor(undefined, mockMetricsService);
+
+    const context = {
+      switchToHttp: () => ({
+        getRequest: () => ({ method: 'GET', url: '/api/v1/leads?page=1&status=new', ip: '127.0.0.1' }),
+        getResponse: () => null,
+      }),
+    } as any;
+
+    const errorObj = { message: 'no-status-field' };
+    const next = { handle: () => throwError(() => errorObj) };
+
+    interceptor.intercept(context, next).subscribe({
+      error: () => {
+        expect(mockMetricsService.httpRequestsTotal.inc).toHaveBeenCalledWith({
+          method: 'GET',
+          route: '/api/v1/leads',
+          status_code: '500',
+        });
+        done();
+      },
+    });
+  });
 });

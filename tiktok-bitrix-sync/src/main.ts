@@ -81,10 +81,10 @@ async function bootstrap() {
 
   await app.listen(port);
   logger.log(`=======================================================`, 'Bootstrap');
-  logger.log(`🚀 Application running on: http://localhost:${port}/${apiPrefix}`, 'Bootstrap');
-  logger.log(`📚 Swagger API Docs available at: http://localhost:${port}/docs`, 'Bootstrap');
-  logger.log(`⚡ TikTok Webhook: http://localhost:${port}/webhooks/tiktok/leads`, 'Bootstrap');
-  logger.log(`⚡ Bitrix24 Webhook: http://localhost:${port}/webhooks/bitrix24/deals`, 'Bootstrap');
+  logger.log(`[APP] Application running on: http://localhost:${port}/${apiPrefix}`, 'Bootstrap');
+  logger.log(`[DOCS] Swagger API Docs available at: http://localhost:${port}/docs`, 'Bootstrap');
+  logger.log(`[WEBHOOK] TikTok Webhook: http://localhost:${port}/webhooks/tiktok/leads`, 'Bootstrap');
+  logger.log(`[WEBHOOK] Bitrix24 Webhook: http://localhost:${port}/webhooks/bitrix24/deals`, 'Bootstrap');
   logger.log(`=======================================================`, 'Bootstrap');
 }
 

@@ -14,18 +14,31 @@ export class ConfigService {
     @Optional() private readonly redisService?: RedisService,
   ) {}
 
+  // Anti-Cache Avalanche: Adds random jitter (0-15s) to avoid simultaneous TTL expiration
+  private getTtlWithJitter(): number {
+    return this.TTL_SECONDS + Math.floor(Math.random() * 15);
+  }
+
   async getConfiguration<T = any>(key: string, defaultValue?: T): Promise<T> {
     const cacheKey = `config:${key}`;
     if (this.redisService) {
       const cached = await this.redisService.get(cacheKey);
       if (cached) {
         try {
-          return JSON.parse(cached) as T;
+          const parsed = JSON.parse(cached);
+          // Anti-Cache Penetration: If key was previously verified non-existent, return default immediately
+          if (parsed && parsed.__isNull) {
+            return defaultValue as T;
+          }
+          return parsed as T;
         } catch {}
       }
     } else {
       const local = this.localFallbackCache.get(key);
       if (local && local.expiresAt > Date.now()) {
+        if (local.value && local.value.__isNull) {
+          return defaultValue as T;
+        }
         return local.value;
       }
     }
@@ -35,13 +48,21 @@ export class ConfigService {
     });
 
     if (!record) {
+      // Anti-Cache Penetration: Cache null indicator with short TTL (15s) to block database hammering
+      const nullValue = { __isNull: true };
+      if (this.redisService) {
+        await this.redisService.set(cacheKey, JSON.stringify(nullValue), 15);
+      } else {
+        this.localFallbackCache.set(key, { value: nullValue, expiresAt: Date.now() + 15000 });
+      }
       return defaultValue as T;
     }
 
+    const ttl = this.getTtlWithJitter();
     if (this.redisService) {
-      await this.redisService.set(cacheKey, JSON.stringify(record.value), this.TTL_SECONDS);
+      await this.redisService.set(cacheKey, JSON.stringify(record.value), ttl);
     } else {
-      this.localFallbackCache.set(key, { value: record.value, expiresAt: Date.now() + this.TTL_SECONDS * 1000 });
+      this.localFallbackCache.set(key, { value: record.value, expiresAt: Date.now() + ttl * 1000 });
     }
     return record.value as T;
   }
@@ -54,12 +75,13 @@ export class ConfigService {
       create: { key, value },
     });
 
+    const ttl = this.getTtlWithJitter();
     // Invalidate / update distributed cache immediately
     if (this.redisService) {
       const cacheKey = `config:${key}`;
-      await this.redisService.set(cacheKey, JSON.stringify(value), this.TTL_SECONDS);
+      await this.redisService.set(cacheKey, JSON.stringify(value), ttl);
     } else {
-      this.localFallbackCache.set(key, { value, expiresAt: Date.now() + this.TTL_SECONDS * 1000 });
+      this.localFallbackCache.set(key, { value, expiresAt: Date.now() + ttl * 1000 });
     }
     return record.value;
   }

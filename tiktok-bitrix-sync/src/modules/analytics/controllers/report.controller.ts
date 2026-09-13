@@ -12,17 +12,19 @@ export class ReportController {
   constructor(private readonly reportExportService: ReportExportService) {}
 
   @Get('export')
-  @ApiOperation({ summary: 'Export lead and deal data to CSV or JSON format' })
-  @ApiQuery({ name: 'format', required: false, enum: ['csv', 'excel', 'json'], example: 'csv' })
+  @ApiOperation({ summary: 'Export lead and deal data to Excel (.xlsx), CSV or JSON format' })
+  @ApiQuery({ name: 'format', required: false, enum: ['excel', 'csv', 'json'], example: 'excel' })
   @ApiQuery({ name: 'date_range', required: false, enum: ['7d', '30d', '90d', 'all'], example: '30d' })
-  @ApiResponse({ status: 200, description: 'Exported file stream or JSON data' })
+  @ApiResponse({ status: 200, description: 'Exported file stream (Excel .xlsx / CSV) or JSON data' })
   async exportReport(
-    @Query('format') format = 'csv',
+    @Query('format') format = 'excel',
     @Query('date_range') dateRange = '30d',
     @Res() res: Response,
   ) {
-    const isExcel = format.toLowerCase() === 'excel';
-    const isJson = format.toLowerCase() === 'json';
+    const fmt = (format || 'excel').toLowerCase();
+    const isJson = fmt === 'json';
+    const isCsv = fmt === 'csv';
+    const isExcel = !isJson && !isCsv; // Mặc định là Excel (.xlsx)
 
     if (isJson) {
       const result = await this.reportExportService.exportLeads('json', dateRange);

@@ -21,9 +21,32 @@ export class DealConversionService {
   // Converts a lead into a deal using the intent-first pattern.
   // Evaluates rules, persists deal intent in DB, calls Bitrix24, and updates status.
   async convertLeadToDeal(leadId: string, manualDto?: ConvertLeadDto) {
-    const lead = await this.prisma.lead.findUnique({
-      where: { id: leadId },
-    });
+    let lead = null;
+    try {
+      lead = await this.prisma.lead.findUnique({
+        where: { id: leadId },
+      });
+    } catch (err: any) {
+      if (err?.code === 'P2023') {
+        lead = null;
+      } else {
+        throw err;
+      }
+    }
+
+    if (!lead && typeof this.prisma.lead.findFirst === 'function') {
+      const isNumber = /^\d+$/.test(leadId);
+      try {
+        lead = await this.prisma.lead.findFirst({
+          where: {
+            OR: [
+              { externalId: leadId },
+              ...(isNumber ? [{ bitrix24Id: parseInt(leadId, 10) }] : []),
+            ],
+          },
+        });
+      } catch {}
+    }
 
     if (!lead) {
       throw new NotFoundException(`Lead #${leadId} not found`);

@@ -44,9 +44,12 @@ export class ApiKeyGuard implements CanActivate {
     }
 
     const request = context.switchToHttp().getRequest();
+    const headers = request.headers || {};
     const providedKey =
-      request.headers[API_CONSTANTS.API_KEY_HEADER] ||
-      request.headers[API_CONSTANTS.API_KEY_HEADER.toLowerCase()];
+      headers[API_CONSTANTS.API_KEY_HEADER] ||
+      headers[API_CONSTANTS.API_KEY_HEADER.toLowerCase()] ||
+      headers['X-API-KEY'] ||
+      headers['X-Api-Key'];
 
     if (!providedKey) {
       throw new UnauthorizedException(ERROR_MESSAGES.UNAUTHORIZED_API_KEY);

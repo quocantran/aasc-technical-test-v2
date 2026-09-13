@@ -57,4 +57,62 @@ describe('TikTokSignatureGuard', () => {
 
     expect(() => guard.canActivate(ctx)).toThrow(UnauthorizedException);
   });
+
+  it('should throw InternalServerErrorException if secretToken is not configured on server', () => {
+    const unconfiguredGuard = new TikTokSignatureGuard(
+      { get: jest.fn().mockReturnValue('') } as any as ConfigService,
+      { error: () => {} } as any as AppLogger,
+    );
+    const ctx = createMockContext({ 'tiktok-signature': 'sig' }, { a: 1 });
+    expect(() => unconfiguredGuard.canActivate(ctx)).toThrow('Server misconfiguration');
+  });
+
+  it('should accept valid signature via x-tiktok-signature header and Buffer rawBody', () => {
+    const body = { event: 'lead.generate' };
+    const rawBuffer = Buffer.from(JSON.stringify(body));
+    const validSignature = crypto.createHmac('sha256', secretToken).update(rawBuffer).digest('hex');
+
+    const ctx = {
+      switchToHttp: () => ({
+        getRequest: () => ({
+          headers: { 'x-tiktok-signature': validSignature },
+          rawBody: rawBuffer,
+          body,
+        }),
+      }),
+    } as any;
+
+    expect(guard.canActivate(ctx)).toBe(true);
+  });
+
+  it('should handle typeof request.body === "string" when rawBody is undefined', () => {
+    const rawString = JSON.stringify({ event: 'lead.generate' });
+    const validSignature = crypto.createHmac('sha256', secretToken).update(Buffer.from(rawString)).digest('hex');
+
+    const ctx = {
+      switchToHttp: () => ({
+        getRequest: () => ({
+          headers: { 'tiktok-signature': validSignature },
+          rawBody: undefined,
+          body: rawString,
+        }),
+      }),
+    } as any;
+
+    expect(guard.canActivate(ctx)).toBe(true);
+  });
+
+  it('should throw InternalServerErrorException if rawBody and string body are both missing', () => {
+    const ctx = {
+      switchToHttp: () => ({
+        getRequest: () => ({
+          headers: { 'tiktok-signature': 'sig' },
+          rawBody: undefined,
+          body: { object: 'not-string' },
+        }),
+      }),
+    } as any;
+
+    expect(() => guard.canActivate(ctx)).toThrow('Raw body buffer is required');
+  });
 });

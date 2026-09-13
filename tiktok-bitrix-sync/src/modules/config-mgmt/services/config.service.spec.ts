@@ -78,4 +78,77 @@ describe('ConfigService', () => {
     const updated = await service.updateDealRules([{ id: 'rule-1' }]);
     expect(updated).toEqual([{ id: 'rule-1' }]);
   });
+
+  describe('with Redis caching layer', () => {
+    let redisService: ConfigService;
+    let mockRedis: any;
+
+    beforeEach(() => {
+      mockRedis = {
+        get: jest.fn(),
+        set: jest.fn(),
+      };
+      const mockLogger = {
+        debug: () => {},
+        warn: () => {},
+        log: () => {},
+        error: () => {},
+      } as any as AppLogger;
+
+      redisService = new ConfigService(mockPrisma as PrismaService, mockLogger, mockRedis);
+    });
+
+    it('should read from Redis cache if present', async () => {
+      mockRedis.get.mockResolvedValueOnce(JSON.stringify({ cached: true }));
+      const val = await redisService.getConfiguration('redis_key');
+      expect(val).toEqual({ cached: true });
+      expect(mockPrisma.configuration.findUnique).not.toHaveBeenCalled();
+    });
+
+    it('should handle null indicator __isNull in Redis cache', async () => {
+      mockRedis.get.mockResolvedValueOnce(JSON.stringify({ __isNull: true }));
+      const val = await redisService.getConfiguration('null_key', 'fallback_default');
+      expect(val).toBe('fallback_default');
+      expect(mockPrisma.configuration.findUnique).not.toHaveBeenCalled();
+    });
+
+    it('should handle malformed JSON in Redis cache and query database', async () => {
+      mockRedis.get.mockResolvedValueOnce('invalid-json');
+      mockPrisma.configuration.findUnique.mockResolvedValueOnce({
+        key: 'corrupt_key',
+        value: { recovered: true },
+      });
+      const val = await redisService.getConfiguration('corrupt_key');
+      expect(val).toEqual({ recovered: true });
+      expect(mockRedis.set).toHaveBeenCalled();
+    });
+
+    it('should store null indicator in Redis when record does not exist in database', async () => {
+      mockRedis.get.mockResolvedValueOnce(null);
+      mockPrisma.configuration.findUnique.mockResolvedValueOnce(null);
+      const val = await redisService.getConfiguration('missing_key', 'def');
+      expect(val).toBe('def');
+      expect(mockRedis.set).toHaveBeenCalledWith('config:missing_key', JSON.stringify({ __isNull: true }), 15);
+    });
+
+    it('should update configuration and sync to Redis', async () => {
+      mockPrisma.configuration.upsert.mockResolvedValueOnce({
+        key: 'update_key',
+        value: { saved: true },
+      });
+      const val = await redisService.setConfiguration('update_key', { saved: true });
+      expect(val).toEqual({ saved: true });
+      expect(mockRedis.set).toHaveBeenCalled();
+    });
+
+    it('should handle deal_rules when value is wrapped in object', async () => {
+      mockRedis.get.mockResolvedValueOnce(null);
+      mockPrisma.configuration.findUnique.mockResolvedValueOnce({
+        key: 'deal_rules',
+        value: { deal_rules: [{ id: 'wrapped-rule' }] },
+      });
+      const rules = await redisService.getDealRules();
+      expect(rules).toEqual([{ id: 'wrapped-rule' }]);
+    });
+  });
 });

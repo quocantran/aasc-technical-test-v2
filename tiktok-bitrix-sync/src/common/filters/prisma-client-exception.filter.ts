@@ -26,6 +26,21 @@ export class PrismaClientExceptionFilter implements ExceptionFilter {
         message = (exception.meta?.cause as string) || 'Record not found';
         break;
       }
+      case 'P2023': {
+        status = HttpStatus.BAD_REQUEST;
+        message = 'Invalid parameter or identifier format (expected valid UUID)';
+        break;
+      }
+      case 'P2000': {
+        status = HttpStatus.BAD_REQUEST;
+        message = 'The provided value is too long for the column';
+        break;
+      }
+      case 'P2003': {
+        status = HttpStatus.BAD_REQUEST;
+        message = 'Foreign key constraint violation';
+        break;
+      }
       default:
         message = `Database error code: ${exception.code}`;
         break;

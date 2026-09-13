@@ -75,7 +75,7 @@ export class ScheduledReportsService {
 
       // Alert threshold condition
       if (unresolvedDlqCount > 0 || recentFailedLeadsCount >= 3) {
-        const alertMessage = `⚠️ [ALERT] High error rate detected in TikTok-Bitrix24 integration! Unresolved DLQ: ${unresolvedDlqCount}, Failed Leads (past hour): ${recentFailedLeadsCount}. Check DLQ and application logs immediately.`;
+        const alertMessage = `[ALERT] High error rate detected in TikTok-Bitrix24 integration! Unresolved DLQ: ${unresolvedDlqCount}, Failed Leads (past hour): ${recentFailedLeadsCount}. Check DLQ and application logs immediately.`;
 
         this.logger?.warn(alertMessage, 'ScheduledReportsService');
 
