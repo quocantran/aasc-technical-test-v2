@@ -43,7 +43,10 @@ export class ForwardSyncService implements IForwardSyncService {
     this.mappingService.loadMappingConfig();
     this.logger.log('Starting Google Sheets -> Bitrix24 synchronization pipeline', 'ForwardSyncService');
     const readStart = Date.now();
-    const { rows, systemColumnIndices } = await this.googleSheetsService.readRows();
+    const defaultCols = typeof this.mappingService.getConfiguredSheetColumns === 'function'
+      ? this.mappingService.getConfiguredSheetColumns()
+      : [];
+    const { rows, systemColumnIndices } = await this.googleSheetsService.readRows(defaultCols);
     const readDuration = Date.now() - readStart;
     this.logger.log(`[Phase 1] Sheet data read & verified in ${readDuration}ms (${rows.length} rows)`, 'ForwardSyncService');
     totalRows = rows.length;

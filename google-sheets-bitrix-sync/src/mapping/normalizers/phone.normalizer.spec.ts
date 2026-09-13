@@ -34,5 +34,14 @@ describe('normalizeVietnamesePhone', () => {
 
     const res3 = normalizeVietnamesePhone('');
     expect(res3.isValid).toBe(false);
+
+    const res4 = normalizeVietnamesePhone('899123456fd');
+    expect(res4.isValid).toBe(false);
+
+    const res5 = normalizeVietnamesePhone('0901234abc');
+    expect(res5.isValid).toBe(false);
+
+    const res6 = normalizeVietnamesePhone('899+123456');
+    expect(res6.isValid).toBe(false);
   });
 });

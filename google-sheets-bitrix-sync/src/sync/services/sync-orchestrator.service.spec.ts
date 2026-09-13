@@ -740,6 +740,13 @@ describe('SyncOrchestratorService', () => {
     expect(orchestrator.isLeadRecentlySynced('1234')).toBe(false);
   });
 
+  it('should immediately remove lead ID when consumeRecentlySyncedLead is called', () => {
+    orchestrator.markLeadAsRecentlySynced('5678');
+    expect(orchestrator.isLeadRecentlySynced('5678')).toBe(true);
+    orchestrator.consumeRecentlySyncedLead('5678');
+    expect(orchestrator.isLeadRecentlySynced('5678')).toBe(false);
+  });
+
   it('should retrieve last result from syncHistoryService', () => {
     const mockRes = { totalRows: 1, created: 1, updated: 0, skipped: 0, failed: 0, durationMs: 10 };
     (orchestrator as any).syncHistoryService.record(mockRes);

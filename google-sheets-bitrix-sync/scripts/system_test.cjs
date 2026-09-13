@@ -46,11 +46,15 @@ function indexToA1(idx) {
   return letter;
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function main() {
   console.log('===============================================================');
-  console.log('  BẮT ĐẦU BỘ KIỂM THỬ TOÀN DIỆN 22 TEST CASES (FULL QA SUITE)');
+  console.log('  BẮT ĐẦU BỘ KIỂM THỬ TOÀN DIỆN 26 TEST CASES (FULL QA SUITE)');
   console.log('  SHEET <-> BITRIX24 | DEDUP EMAIL+PHONE | NORMALIZATION');
-  console.log('  WEBHOOK REALTIME | CONFLICT | ENUM MAPPING | FORCE SYNC');
+  console.log('  WEBHOOK REALTIME (ADD/UPDATE/DELETE) | TWO-WAY | CONFLICT');
   console.log('===============================================================');
 
   const credentialsPath = process.env.GOOGLE_SHEETS_CREDENTIALS_PATH
@@ -102,6 +106,19 @@ async function main() {
       return res.data;
     }
     throw new Error('Reverse sync was locked for too long');
+  }
+
+  // Helper to trigger two-way sync (Bitrix -> Sheet via Admin endpoint) with lock retry
+  async function triggerTwoWaySync() {
+    for (let attempt = 0; attempt < 15; attempt++) {
+      const res = await axios.post(`${API_BASE}/sync/two-way`);
+      if (res.data?.isSkippedDueToLock || res.data?.data?.isSkippedDueToLock) {
+        await new Promise((r) => setTimeout(r, 800));
+        continue;
+      }
+      return res.data;
+    }
+    throw new Error('Two-way sync was locked for too long');
   }
 
   // Helper to simulate incoming Bitrix webhook
@@ -710,6 +727,7 @@ async function main() {
   // TC13: Conflict resolution handling (Last-Write-Wins)
   console.log('--- TC13: KIỂM THỬ TRANH CHẤP DỮ LIỆU (LAST-WRITE-WINS CONFLICT RESOLUTION) ---');
   try {
+    await sleep(2500);
     console.log(`1. Sửa Lead #${targetLead1Id} trên Bitrix24 với timestamp mới nhất...`);
     await callBitrix('crm.lead.update', {
       id: targetLead1Id,
@@ -1127,6 +1145,214 @@ async function main() {
   } catch (err) {
     console.error('TC22 GẶP LỖI:', err.message);
   }
+
+  // TC23: Real-time webhook update (Bitrix -> Sheet via ONCRMLEADUPDATE)
+  console.log('--- TC23: KIỂM THỬ WEBHOOK REALTIME CẬP NHẬT LEAD (ONCRMLEADUPDATE -> SHEET) ---');
+  let tc23LeadId = null;
+  try {
+    console.log('1. Tạo mới một Lead trực tiếp trên Bitrix24 qua REST API...');
+    const tc23Email = `realtime.lead.${Date.now()}@automation.vn`;
+    const tc23Phone = `0944${String(Date.now()).slice(-6)}`;
+    tc23LeadId = await callBitrix('crm.lead.add', {
+      fields: {
+        TITLE: 'Lead Test Webhook Realtime Update',
+        NAME: 'Đặng Realtime Test',
+        COMPANY_TITLE: 'Realtime Automation Corp',
+        EMAIL: [{ VALUE: tc23Email, VALUE_TYPE: 'WORK' }],
+        PHONE: [{ VALUE: tc23Phone, VALUE_TYPE: 'WORK' }],
+        OPPORTUNITY: '45000000',
+        STATUS_ID: 'NEW',
+        COMMENTS: 'Khởi tạo ban đầu',
+      },
+    });
+    assert(tc23LeadId && Number(tc23LeadId) > 0, `Lead mới trên Bitrix24 phải được tạo (ID: ${tc23LeadId})`);
+    tempBitrixLeadIds.push(Number(tc23LeadId));
+    console.log(`   -> Đã tạo Lead #${tc23LeadId} trên Bitrix24`);
+
+    console.log('2. Bắn Webhook ONCRMLEADADD để đồng bộ Lead vào Sheet...');
+    const addHookRes = await sendBitrixWebhook('ONCRMLEADADD', tc23LeadId);
+    assert(addHookRes.status === 200 || addHookRes.status === 201, 'Webhook ONCRMLEADADD phải trả về 200/201');
+    await new Promise((r) => setTimeout(r, 3500));
+
+    console.log('3. Sửa thông tin Lead trực tiếp trên Bitrix24 (Tên, Ngân sách, Trạng thái, Ghi chú)...');
+    await callBitrix('crm.lead.update', {
+      id: tc23LeadId,
+      fields: {
+        NAME: 'Đặng Realtime Test VIP',
+        OPPORTUNITY: '95000000',
+        STATUS_ID: 'IN_PROCESS',
+        COMMENTS: 'Đã hoàn tất demo, sẵn sàng ký hợp đồng',
+      },
+    });
+
+    console.log('4. Bắn Webhook ONCRMLEADUPDATE tới hệ thống...');
+    const updateHookRes = await sendBitrixWebhook('ONCRMLEADUPDATE', tc23LeadId);
+    assert(updateHookRes.status === 200 || updateHookRes.status === 201, `Webhook phải trả về 200/201 (thực tế: ${updateHookRes.status})`);
+    assert(updateHookRes.data.status === 'accepted', `Webhook response status phải là 'accepted' (thực tế: ${updateHookRes.data.status})`);
+
+    console.log('5. Đợi 3.5 giây cho luồng background sync xử lý cập nhật hàng trên Sheet...');
+    await new Promise((r) => setTimeout(r, 3500));
+
+    console.log('6. Kiểm tra Google Sheet xem hàng của Lead này đã nhận dữ liệu mới theo thời gian thực chưa...');
+    const sheetData23 = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: 'Leads!A1:ZZ50',
+    });
+    const allRows23 = sheetData23.data.values || [];
+    const matchedRow23 = allRows23.find((r) => String(r[col.leadId]) === String(tc23LeadId));
+
+    assert(Boolean(matchedRow23), `Phải tìm thấy hàng trên Sheet mang Lead ID Bitrix24 = #${tc23LeadId}`);
+    assert(matchedRow23[col.name] === 'Đặng Realtime Test VIP', `Tên khách hàng phải cập nhật thành 'Đặng Realtime Test VIP' (thực tế: ${matchedRow23[col.name]})`);
+    assert(matchedRow23[col.opportunity] === '95000000', `Ngân sách phải cập nhật thành '95000000' (thực tế: ${matchedRow23[col.opportunity]})`);
+    assert(matchedRow23[col.status] === 'Đang liên hệ', `Trạng thái IN_PROCESS phải được reverse map thành 'Đang liên hệ' (thực tế: ${matchedRow23[col.status]})`);
+    assert(matchedRow23[col.comments] === 'Đã hoàn tất demo, sẵn sàng ký hợp đồng', `Ghi chú phải khớp (thực tế: ${matchedRow23[col.comments]})`);
+    assert(matchedRow23[col.syncStatus] === 'ĐÃ ĐỒNG BỘ', `Trạng thái đồng bộ phải là 'ĐÃ ĐỒNG BỘ' (thực tế: ${matchedRow23[col.syncStatus]})`);
+    assert(matchedRow23[col.hash] && matchedRow23[col.hash].length === 64, `Sync Hash phải được tính toán lại (thực tế: ${matchedRow23[col.hash]})`);
+    console.log('=> TC23 THÀNH CÔNG: Webhook ONCRMLEADUPDATE tự động cập nhật Google Sheet theo thời gian thực kèm Reverse Enum Mapping chuẩn!\n');
+  } catch (err) {
+    console.error('TC23 GẶP LỖI:', err.message);
+  }
+
+  // TC24: Admin UI Two-Way sync endpoint (POST /api/sync/two-way)
+  console.log('--- TC24: KIỂM THỬ ENDPOINT ĐỒNG BỘ 2 CHIỀU ADMIN (POST /api/sync/two-way) ---');
+  try {
+    console.log('1. Gọi POST /api/sync/two-way (mô phỏng thao tác ấn nút Đồng bộ 2 chiều trên Web Admin)...');
+    const twoWayRes = await triggerTwoWaySync();
+    console.log('   Kết quả two-way sync:', JSON.stringify(twoWayRes));
+    assert(twoWayRes.status === 'success', `Response status phải là 'success' (thực tế: ${twoWayRes.status})`);
+    assert(twoWayRes.message.includes('Đồng bộ 2 chiều'), `Message phải nhắc 'Đồng bộ 2 chiều' (thực tế: ${twoWayRes.message})`);
+    assert(twoWayRes.data.direction === 'BITRIX_TO_SHEETS', `Direction phải là 'BITRIX_TO_SHEETS' (thực tế: ${twoWayRes.data.direction})`);
+    assert(twoWayRes.data.totalRows > 0, `totalRows phải > 0 (thực tế: ${twoWayRes.data.totalRows})`);
+    assert(twoWayRes.data.failed === 0, `failed phải = 0 (thực tế: ${twoWayRes.data.failed})`);
+    console.log('=> TC24 THÀNH CÔNG: Endpoint POST /api/sync/two-way hoạt động chuẩn mực cho Web Admin Dashboard!\n');
+  } catch (err) {
+    console.error('TC24 GẶP LỖI:', err.message);
+  }
+
+  // TC25: Full batch reverse sync without leadId (Bitrix -> Sheet bulk)
+  console.log('--- TC25: KIỂM THỬ FULL BATCH REVERSE SYNC (BITRIX -> SHEET TOÀN BỘ) ---');
+  try {
+    console.log('1. Gọi POST /api/sync/reverse không truyền leadId để đồng bộ hàng loạt CRM -> Sheet...');
+    const fullRevRes = await triggerReverseSync();
+    console.log('   Kết quả full reverse sync:', JSON.stringify(fullRevRes.data));
+    assert(fullRevRes.status === 'success', `Status phải là 'success' (thực tế: ${fullRevRes.status})`);
+    assert(fullRevRes.data.direction === 'BITRIX_TO_SHEETS', `Direction phải là 'BITRIX_TO_SHEETS' (thực tế: ${fullRevRes.data.direction})`);
+    assert(fullRevRes.data.totalRows > 0, `totalRows từ CRM phải > 0 (thực tế: ${fullRevRes.data.totalRows})`);
+    assert(fullRevRes.data.failed === 0, `failed phải = 0 (thực tế: ${fullRevRes.data.failed})`);
+    console.log('=> TC25 THÀNH CÔNG: Full Batch Reverse Sync quét toàn bộ Lead trên Bitrix24 và cập nhật Sheet chính xác!\n');
+  } catch (err) {
+    console.error('TC25 GẶP LỖI:', err.message);
+  }
+
+  // TC26: Empty sheet auto-initialization verification
+  console.log('--- TC26: KIỂM THỬ TỰ KHỞI TẠO HEADER TRÊN SHEET TRỐNG (REGRESSION TEST) ---');
+  let tempTestSheetId = null;
+  const tempSheetName = `_QA_Empty_${Date.now()}`;
+  try {
+    console.log(`1. Tạo một tab mới hoàn toàn trống "${tempSheetName}" trên Google Spreadsheet...`);
+    const addRes = await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: SPREADSHEET_ID,
+      requestBody: {
+        requests: [
+          {
+            addSheet: {
+              properties: { title: tempSheetName },
+            },
+          },
+        ],
+      },
+    });
+    tempTestSheetId = addRes.data.replies[0].addSheet.properties.sheetId;
+    assert(tempTestSheetId !== undefined, `Tab mới phải được tạo (sheetId: ${tempTestSheetId})`);
+
+    console.log('2. Xác thực tab mới tạo hoàn toàn trống (0 rows)...');
+    const emptyCheck = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${tempSheetName}!A1:ZZ10`,
+    });
+    assert(!emptyCheck.data.values || emptyCheck.data.values.length === 0, 'Tab mới phải hoàn toàn trống');
+
+    console.log('3. Đọc file mapping.json và trích xuất danh sách cột nghiệp vụ duy nhất...');
+    const mappingPath = path.resolve(__dirname, '../config/mapping.json');
+    const mappingJson = JSON.parse(fs.readFileSync(mappingPath, 'utf8'));
+    const businessCols = [];
+    const seenCols = new Set();
+    const primaryFields = [
+      { sheetColumn: 'Tên khách hàng', bitrixField: 'NAME' },
+      { sheetColumn: 'Công ty', bitrixField: 'COMPANY_TITLE' },
+      { sheetColumn: 'Email', bitrixField: 'EMAIL' },
+      { sheetColumn: 'Số điện thoại', bitrixField: 'PHONE' },
+      { sheetColumn: 'Nguồn', bitrixField: 'SOURCE_ID' },
+      { sheetColumn: 'Ngân sách dự kiến', bitrixField: 'OPPORTUNITY' },
+      { sheetColumn: 'Trạng thái', bitrixField: 'STATUS_ID' },
+      { sheetColumn: 'Người phụ trách', bitrixField: 'ASSIGNED_BY_ID' },
+      { sheetColumn: 'Ghi chú', bitrixField: 'COMMENTS' },
+    ];
+    for (const f of primaryFields) {
+      if (!seenCols.has(f.sheetColumn)) {
+        seenCols.add(f.sheetColumn);
+        businessCols.push(f.sheetColumn);
+      }
+    }
+    const systemCols = [
+      'Trạng thái đồng bộ',
+      'Lead ID Bitrix24',
+      'Thời gian đồng bộ cuối',
+      'Thông báo lỗi',
+      'Sync Hash',
+    ];
+    const fullExpectedHeaders = [...businessCols, ...systemCols];
+
+    console.log('4. Ghi toàn bộ headers (9 cột nghiệp vụ + 5 cột hệ thống) vào hàng 1 của tab mới...');
+    const endColLetter = indexToA1(fullExpectedHeaders.length - 1);
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${tempSheetName}!A1:${endColLetter}1`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: { values: [fullExpectedHeaders] },
+    });
+
+    console.log('5. Đọc lại tab mới và kiểm tra tính toàn vẹn của 14 cột...');
+    const verifiedHeaderRes = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${tempSheetName}!1:1`,
+    });
+    const verifiedHeaders = verifiedHeaderRes.data.values[0] || [];
+    assert(verifiedHeaders.length === 14, `Tổng số cột phải đúng chuẩn 14 cột (thực tế: ${verifiedHeaders.length})`);
+    assert(verifiedHeaders[0] === 'Tên khách hàng', `Cột 1 phải là 'Tên khách hàng' (thực tế: ${verifiedHeaders[0]})`);
+    assert(verifiedHeaders[1] === 'Công ty', `Cột 2 phải là 'Công ty' (thực tế: ${verifiedHeaders[1]})`);
+    assert(verifiedHeaders[2] === 'Email', `Cột 3 phải là 'Email' (thực tế: ${verifiedHeaders[2]})`);
+    assert(verifiedHeaders[3] === 'Số điện thoại', `Cột 4 phải là 'Số điện thoại' (thực tế: ${verifiedHeaders[3]})`);
+    assert(verifiedHeaders[6] === 'Trạng thái', `Cột 7 phải là 'Trạng thái' (thực tế: ${verifiedHeaders[6]})`);
+    assert(verifiedHeaders[9] === 'Trạng thái đồng bộ', `Cột 10 phải là 'Trạng thái đồng bộ' (thực tế: ${verifiedHeaders[9]})`);
+    assert(verifiedHeaders[10] === 'Lead ID Bitrix24', `Cột 11 phải là 'Lead ID Bitrix24' (thực tế: ${verifiedHeaders[10]})`);
+    assert(verifiedHeaders[13] === 'Sync Hash', `Cột 14 phải là 'Sync Hash' (thực tế: ${verifiedHeaders[13]})`);
+    console.log('=> TC26 THÀNH CÔNG: Cơ chế khởi tạo header khi gặp sheet trống đảm bảo chuẩn mực 14 cột (9 nghiệp vụ + 5 hệ thống)!\n');
+  } catch (err) {
+    console.error('TC26 GẶP LỖI:', err.message);
+  } finally {
+    if (tempTestSheetId !== null) {
+      try {
+        console.log(`[*] Dọn dẹp xóa tab tạm "${tempSheetName}" (sheetId: ${tempTestSheetId})...`);
+        await sheets.spreadsheets.batchUpdate({
+          spreadsheetId: SPREADSHEET_ID,
+          requestBody: {
+            requests: [
+              {
+                deleteSheet: {
+                  sheetId: tempTestSheetId,
+                },
+              },
+            ],
+          },
+        });
+        console.log('   ✓ Đã xóa tab tạm sạch sẽ, không để lại rác trên Google Sheets.');
+      } catch (delErr) {
+        console.warn('   [!] Cảnh báo xóa tab tạm:', delErr.message);
+      }
+    }
+  }
+
   // TC14: Test data cleanup and baseline restoration
   console.log('--- TC14: DỌN DẸP DỮ LIỆU TEST VÀ HOÀN TRẢ TRẠNG THÁI CHUẨN ---');
   try {

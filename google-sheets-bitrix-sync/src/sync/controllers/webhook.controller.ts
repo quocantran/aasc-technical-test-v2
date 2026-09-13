@@ -51,6 +51,11 @@ export class WebhookController {
       leadIds.every((id) => this.syncOrchestrator.isLeadRecentlySynced(id));
 
     if (isSelfEcho) {
+      leadIds.forEach((id) => {
+        if (typeof this.syncOrchestrator.consumeRecentlySyncedLead === 'function') {
+          this.syncOrchestrator.consumeRecentlySyncedLead(id);
+        }
+      });
       this.logger.log(
         `Skipping self-echo Bitrix24 webhook event ${eventName} on recently synced Lead(s) ${JSON.stringify(leadId)}`,
         'WebhookController',

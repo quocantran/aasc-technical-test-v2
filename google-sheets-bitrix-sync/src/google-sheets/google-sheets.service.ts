@@ -99,7 +99,7 @@ export class GoogleSheetsService {
   }
 
   // Reads all rows from sheet, ensures system columns exist, and returns structured row objects
-  async readRows(): Promise<ReadSheetResult> {
+  async readRows(defaultBusinessColumns?: string[]): Promise<ReadSheetResult> {
     const sheets = await this.authStrategy.getSheetsClient();
     const range = `${this.sheetName}!${GOOGLE_SHEETS_CONSTANTS.DEFAULT_RANGE}`;
 
@@ -114,7 +114,14 @@ export class GoogleSheetsService {
     );
 
     const rawRows = response.data.values || [];
-    if (rawRows.length === 0) {
+    const isSheetBlank = rawRows.length === 0 || (rawRows[0] || []).every((h) => !h || String(h).trim() === '');
+
+    if (isSheetBlank) {
+      if (defaultBusinessColumns && defaultBusinessColumns.length > 0) {
+        this.logger.log('Sheet is completely empty. Initializing row 1 headers from mapping...', 'GoogleSheetsService');
+        const initialized = await this.initializeEmptySheet(sheets, defaultBusinessColumns);
+        return { rows: [], headers: initialized.headers, systemColumnIndices: initialized.systemColumnIndices };
+      }
       return { rows: [], headers: [], systemColumnIndices: {} };
     }
 
@@ -214,12 +221,14 @@ export class GoogleSheetsService {
         const endRow = sortedUpdates[chunkEndIdx].rowIndex;
         const blockValues: any[][] = [];
 
+        const formatLastSync = (t?: string | null) => (t ? `'${String(t).replace(/^'+/, '')}` : '');
+
         for (let i = chunkStartIdx; i <= chunkEndIdx; i++) {
           const u = sortedUpdates[i];
           blockValues.push([
             u.status ?? '',
             u.bitrixLeadId ?? '',
-            u.lastSyncTime ?? '',
+            formatLastSync(u.lastSyncTime),
             u.errorMessage ?? '',
             u.syncHash ?? '',
           ]);
@@ -233,6 +242,7 @@ export class GoogleSheetsService {
         chunkStartIdx = chunkEndIdx + 1;
       }
     } else {
+      const formatLastSync = (t?: string | null) => (t ? `'${String(t).replace(/^'+/, '')}` : '');
       for (const update of updates) {
         const addCell = (colIdx: number | undefined, val: any) => {
           if (colIdx !== undefined) {
@@ -245,7 +255,7 @@ export class GoogleSheetsService {
         };
         addCell(statusCol, update.status);
         addCell(bitrixIdCol, update.bitrixLeadId);
-        addCell(lastSyncCol, update.lastSyncTime);
+        addCell(lastSyncCol, formatLastSync(update.lastSyncTime));
         addCell(errorCol, update.errorMessage);
         addCell(hashCol, update.syncHash);
       }
@@ -318,6 +328,17 @@ export class GoogleSheetsService {
     const sheets = await this.authStrategy.getSheetsClient();
     const range = `${this.sheetName}!A1`;
     this.logger.log(`Appending ${rows.length} new rows to Google Sheet: ${range}`, 'GoogleSheetsService');
+
+    // Ensures date-time strings are safely stored as text so Google Sheets doesn't convert to raw serial numbers
+    const sanitizedRows = rows.map((r) =>
+      r.map((val) => {
+        if (typeof val === 'string' && /^\d{2}\/\d{2}\/\d{4}\s\d{2}:\d{2}:\d{2}$/.test(val.trim())) {
+          return `'${val.trim().replace(/^'+/, '')}`;
+        }
+        return val;
+      }),
+    );
+
     await this.callWithRetry(
       () =>
         sheets.spreadsheets.values.append({
@@ -326,7 +347,7 @@ export class GoogleSheetsService {
           valueInputOption: 'USER_ENTERED',
           insertDataOption: 'INSERT_ROWS',
           requestBody: {
-            values: rows,
+            values: sanitizedRows,
           },
         }),
       'GoogleSheets:appendRows',
@@ -481,6 +502,49 @@ export class GoogleSheetsService {
     return { indices, addedNewColumns: missingHeaderNames.length > 0 };
   }
 
+  // Initializes Row 1 headers on an empty Google Sheet including business columns and system columns
+  async initializeEmptySheet(
+    sheets: sheets_v4.Sheets,
+    businessColumns: string[],
+  ): Promise<{ headers: string[]; systemColumnIndices: Record<string, number> }> {
+    const systemHeaders = Object.values(SYSTEM_COLUMNS_VI);
+    const allHeaders = [...businessColumns, ...systemHeaders];
+
+    const endLetter = indexToA1Column(allHeaders.length - 1);
+    const range = `${this.sheetName}!A1:${endLetter}1`;
+
+    this.logger.log(`Initializing Row 1 with ${allHeaders.length} columns on empty sheet: ${range}`, 'GoogleSheetsService');
+    await this.callWithRetry(
+      () =>
+        sheets.spreadsheets.values.update({
+          spreadsheetId: this.sheetId,
+          range,
+          valueInputOption: 'USER_ENTERED',
+          requestBody: {
+            values: [allHeaders],
+          },
+        }),
+      'GoogleSheets:initializeEmptySheet',
+    );
+
+    const systemColumnIndices: Record<string, number> = {};
+    const systemKeys = Object.keys(SYSTEM_COLUMNS) as Array<keyof typeof SYSTEM_COLUMNS>;
+    for (const key of systemKeys) {
+      const internalName = SYSTEM_COLUMNS[key];
+      const viHeader = SYSTEM_COLUMNS_VI[key];
+      const idx = allHeaders.indexOf(viHeader);
+      if (idx !== -1) {
+        systemColumnIndices[internalName] = idx;
+      }
+    }
+
+    // Immediately hide system columns (Lead ID, Hash)
+    await this.hideSystemColumns(sheets, systemColumnIndices);
+    this.columnsHidden = true;
+
+    return { headers: allHeaders, systemColumnIndices };
+  }
+
   // Hides Lead ID and Hash columns in Google Sheets UI, and sets text wrap for Error Message
   private async hideSystemColumns(
     sheets: sheets_v4.Sheets,
@@ -492,8 +556,30 @@ export class GoogleSheetsService {
 
       const leadIdCol = systemColumnIndices[SYSTEM_COLUMNS.BITRIX_ID];
       const hashCol = systemColumnIndices[SYSTEM_COLUMNS.HASH];
+      const statusCol = systemColumnIndices[SYSTEM_COLUMNS.STATUS];
+      const lastSyncCol = systemColumnIndices[SYSTEM_COLUMNS.LAST_SYNC];
       const errorCol = systemColumnIndices[SYSTEM_COLUMNS.ERROR];
 
+      // Explicitly ensures status, lastSync, and error columns are VISIBLE
+      const colsToUnhide = [statusCol, lastSyncCol, errorCol].filter((c) => c !== undefined) as number[];
+      for (const colIdx of colsToUnhide) {
+        requests.push({
+          updateDimensionProperties: {
+            range: {
+              sheetId: numericSheetId,
+              dimension: 'COLUMNS',
+              startIndex: colIdx,
+              endIndex: colIdx + 1,
+            },
+            properties: {
+              hiddenByUser: false,
+            },
+            fields: 'hiddenByUser',
+          },
+        });
+      }
+
+      // Hides ONLY Lead ID and Sync Hash
       const colsToHide = [leadIdCol, hashCol].filter((c) => c !== undefined) as number[];
 
       for (const colIdx of colsToHide) {
@@ -528,6 +614,27 @@ export class GoogleSheetsService {
               },
             },
             fields: 'userEnteredFormat.wrapStrategy',
+          },
+        });
+      }
+
+      // Automatically sets text format for Last Sync Time column so Google Sheets never displays raw serial numbers
+      if (lastSyncCol !== undefined) {
+        requests.push({
+          repeatCell: {
+            range: {
+              sheetId: numericSheetId,
+              startColumnIndex: lastSyncCol,
+              endColumnIndex: lastSyncCol + 1,
+            },
+            cell: {
+              userEnteredFormat: {
+                numberFormat: {
+                  type: 'TEXT',
+                },
+              },
+            },
+            fields: 'userEnteredFormat.numberFormat',
           },
         });
       }

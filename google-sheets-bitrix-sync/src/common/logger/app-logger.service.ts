@@ -9,6 +9,8 @@ export interface SyncSummaryData {
   skipped: number;
   failed: number;
   durationMs: number;
+  direction?: string;
+  deleted?: number;
 }
 
 // Application logger wrapping Pino for structured and pretty-printed logs
@@ -57,14 +59,22 @@ export class AppLogger implements LoggerService {
   // Prints the execution summary table in Vietnamese to stdout
   printVietnameseSummary(summary: SyncSummaryData): void {
     const durationSec = (summary.durationMs / 1000).toFixed(2);
+    const isReverse = summary.direction === 'BITRIX_TO_SHEETS';
+    const title = isReverse
+      ? 'KẾT QUẢ ĐỒNG BỘ BITRIX24 -> GOOGLE SHEETS'
+      : 'KẾT QUẢ ĐỒNG BỘ GOOGLE SHEETS -> BITRIX24';
+    const firstLine = isReverse
+      ? `Tổng số bản ghi trên CRM    : ${summary.totalRows}`
+      : `Tổng số bản ghi đọc được    : ${summary.totalRows}`;
+    const deletedLine = summary.deleted ? `Bản ghi xóa trên Sheet      : ${summary.deleted}\n` : '';
     const output = `
 ==================================================
-      KẾT QUẢ ĐỒNG BỘ GOOGLE SHEETS -> BITRIX24
+      ${title}
 ==================================================
-Tổng số bản ghi đọc được    : ${summary.totalRows}
+${firstLine}
 Bản ghi tạo mới thành công  : ${summary.created}
 Bản ghi cập nhật thành công : ${summary.updated}
-Bản ghi bỏ qua (không đổi)  : ${summary.skipped}
+${deletedLine}Bản ghi bỏ qua (không đổi)  : ${summary.skipped}
 Bản ghi gặp lỗi             : ${summary.failed}
 Tổng thời gian thực hiện    : ${durationSec}s
 ==================================================

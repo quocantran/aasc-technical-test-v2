@@ -49,7 +49,7 @@ describe('GoogleSheetsService', () => {
     service = new GoogleSheetsService(mockConfigService, mockAuthStrategy, mockLogger);
   });
 
-  it('should return empty result if sheet is completely empty', async () => {
+  it('should return empty result if sheet is completely empty and no default columns provided', async () => {
     mockSheetsClient.spreadsheets.values.get.mockResolvedValue({
       data: { values: [] },
     });
@@ -57,6 +57,32 @@ describe('GoogleSheetsService', () => {
     const result = await service.readRows();
     expect(result.rows).toHaveLength(0);
     expect(result.headers).toHaveLength(0);
+  });
+
+  it('should initialize empty sheet with business headers and system headers if defaultBusinessColumns provided', async () => {
+    mockSheetsClient.spreadsheets.values.get.mockResolvedValue({
+      data: { values: [] },
+    });
+    mockSheetsClient.spreadsheets.values.update.mockResolvedValue({ data: {} });
+    mockSheetsClient.spreadsheets.batchUpdate.mockResolvedValue({ data: {} });
+
+    const result = await service.readRows(['Tên khách hàng', 'Email']);
+    expect(mockSheetsClient.spreadsheets.values.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        spreadsheetId: 'test-sheet-id',
+        range: 'Leads!A1:G1',
+        requestBody: {
+          values: [
+            ['Tên khách hàng', 'Email', 'Trạng thái đồng bộ', 'Lead ID Bitrix24', 'Thời gian đồng bộ cuối', 'Thông báo lỗi', 'Sync Hash'],
+          ],
+        },
+      }),
+    );
+    expect(result.rows).toHaveLength(0);
+    expect(result.headers).toContain('Tên khách hàng');
+    expect(result.headers).toContain('Email');
+    expect(result.headers).toContain('Lead ID Bitrix24');
+    expect(result.systemColumnIndices[SYSTEM_COLUMNS.BITRIX_ID]).toBe(3);
   });
 
   it('should read rows and append system columns if missing', async () => {
@@ -151,7 +177,7 @@ describe('GoogleSheetsService', () => {
         data: [
           {
             range: 'Leads!C2:G2',
-            values: [[SYNC_STATUS_VI.SYNCED, '555', '2026-03-01T12:00:00Z', '', 'abcsha256']],
+            values: [[SYNC_STATUS_VI.SYNCED, '555', "'2026-03-01T12:00:00Z", '', 'abcsha256']],
           },
         ],
       },
@@ -319,15 +345,15 @@ describe('GoogleSheetsService', () => {
           {
             range: 'Leads!C2:G4',
             values: [
-              [SYNC_STATUS_VI.SYNCED, '101', '2026-03-01T12:00:00Z', '', 'h1'],
-              [SYNC_STATUS_VI.SYNCED, '102', '2026-03-01T12:00:00Z', '', 'h2'],
-              [SYNC_STATUS_VI.SYNCED, '103', '2026-03-01T12:00:00Z', '', 'h3'],
+              [SYNC_STATUS_VI.SYNCED, '101', "'2026-03-01T12:00:00Z", '', 'h1'],
+              [SYNC_STATUS_VI.SYNCED, '102', "'2026-03-01T12:00:00Z", '', 'h2'],
+              [SYNC_STATUS_VI.SYNCED, '103', "'2026-03-01T12:00:00Z", '', 'h3'],
             ],
           },
           {
             range: 'Leads!C7:G7',
             values: [
-              [SYNC_STATUS_VI.SYNCED, '104', '2026-03-01T12:00:00Z', '', 'h4'],
+              [SYNC_STATUS_VI.SYNCED, '104', "'2026-03-01T12:00:00Z", '', 'h4'],
             ],
           },
         ],

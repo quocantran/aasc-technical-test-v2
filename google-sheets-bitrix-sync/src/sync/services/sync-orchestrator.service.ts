@@ -38,6 +38,12 @@ export class SyncOrchestratorService {
     return this.recentSyncedLeadIds.has(String(leadId));
   }
 
+  // Consumes a recently synced lead ID once its self-echo webhook has arrived
+  consumeRecentlySyncedLead(leadId: string | number): void {
+    if (leadId === undefined || leadId === null || leadId === '') return;
+    this.recentSyncedLeadIds.delete(String(leadId));
+  }
+
   private cleanExpiredRecentLeads(): void {
     const now = Date.now();
     for (const [id, time] of this.recentSyncedLeadIds.entries()) {
@@ -129,6 +135,7 @@ export class SyncOrchestratorService {
 
       const result = await this.reverseSyncService.execute(idsToProcess);
       await this.syncHistoryService.record(result);
+      this.logger.printVietnameseSummary(result);
       return result;
     } catch (error: any) {
       this.logger.error(`Two-way sync failed: ${error.message}`, error.stack, 'SyncOrchestrator');

@@ -91,6 +91,11 @@
       "bitrixField": "ASSIGNED_BY_ID",
       "type": "number",
       "defaultValue": 1
+    },
+    {
+      "sheetColumn": "Tiêu đề lead",
+      "bitrixField": "TITLE",
+      "type": "string"
     }
   ]
 }

@@ -31,8 +31,26 @@ export class ReverseSyncService implements IReverseSyncService {
     let failed = 0;
 
     this.mappingService.loadMappingConfig();
-    const { rows, headers, systemColumnIndices } = await this.googleSheetsService.readRows();
+    const defaultCols = typeof this.mappingService.getConfiguredSheetColumns === 'function'
+      ? this.mappingService.getConfiguredSheetColumns()
+      : [];
+    const { rows, headers, systemColumnIndices } = await this.googleSheetsService.readRows(defaultCols);
     totalRows = rows.length;
+
+    // Safety check: if headers are empty, abort without writing malformed rows
+    if (headers.length === 0) {
+      this.logger.warn('Reverse sync aborted: Google Sheet is empty and headers could not be determined', 'ReverseSyncService');
+      return {
+        totalRows: 0,
+        created: 0,
+        updated: 0,
+        skipped: 0,
+        failed: 0,
+        durationMs: Date.now() - startTime,
+        timestamp: new Date().toISOString(),
+        direction: SYNC_DIRECTIONS.BITRIX_TO_SHEETS,
+      };
+    }
 
     const bitrixLeads: any[] = [];
     const systemUpdates: RowUpdatePayload[] = [];
@@ -139,20 +157,20 @@ export class ReverseSyncService implements IReverseSyncService {
     const nonDeletedRows = rows.filter((r) => !rowIndicesToDelete.has(r.rowIndex));
 
     for (const lead of bitrixLeads) {
-      // Finds matching row by Bitrix Lead ID
-      let matchedRow = nonDeletedRows.find(
+      // Finds all matching rows by Bitrix Lead ID (handles duplicate linked rows on Sheet)
+      let matchedRows = nonDeletedRows.filter(
         (r) => String(r.systemFields.bitrixLeadId) === String(lead.ID),
       );
 
       // Deduplication fallback: if not matched by Lead ID, match by Email or Phone using mapped columns
-      if (!matchedRow) {
+      if (matchedRows.length === 0) {
         const leadEmail = Array.isArray(lead.EMAIL) ? lead.EMAIL[0]?.VALUE : undefined;
         const leadPhone = Array.isArray(lead.PHONE) ? lead.PHONE[0]?.VALUE : undefined;
         const cleanLeadEmail = leadEmail ? String(leadEmail).trim().toLowerCase() : '';
         const cleanLeadPhone = leadPhone ? String(leadPhone).replace(/\D/g, '') : '';
 
         if (cleanLeadEmail || cleanLeadPhone) {
-          matchedRow = nonDeletedRows.find((r) => {
+          matchedRows = nonDeletedRows.filter((r) => {
             const rEmail = getRowEmail(r);
             const rPhone = getRowPhoneDigits(r);
             if (cleanLeadEmail && rEmail && cleanLeadEmail === rEmail) {
@@ -177,38 +195,44 @@ export class ReverseSyncService implements IReverseSyncService {
 
         const nowFormatted = formatSyncDateTime();
 
-        if (matchedRow) {
-          const bitrixModifyTime = lead.DATE_MODIFY ? new Date(lead.DATE_MODIFY).getTime() : 0;
-          const sheetLastSyncTime = parseSyncDateTime(matchedRow.systemFields.lastSyncTime);
+        if (matchedRows.length > 0) {
+          let hasRowUpdated = false;
+          for (const matchedRow of matchedRows) {
+            const bitrixModifyTime = lead.DATE_MODIFY ? new Date(lead.DATE_MODIFY).getTime() : 0;
+            const sheetLastSyncTime = parseSyncDateTime(matchedRow.systemFields.lastSyncTime);
 
-          // Conflict resolution: Last-Write-Wins based on modification timestamp
-          if (bitrixModifyTime <= sheetLastSyncTime && matchedRow.systemFields.syncHash === newHash) {
-            continue;
-          }
-
-          const cellDiffs: Record<string, any> = {};
-          for (const [colName, val] of Object.entries(updatedCells)) {
-            if (val !== undefined && val !== null && String(val) !== String(matchedRow.data[colName] || '')) {
-              cellDiffs[colName] = val;
+            // Conflict resolution: Last-Write-Wins based on modification timestamp
+            if (bitrixModifyTime <= sheetLastSyncTime && matchedRow.systemFields.syncHash === newHash) {
+              continue;
             }
-          }
 
-          if (Object.keys(cellDiffs).length > 0 || matchedRow.systemFields.status !== SYNC_STATUS_VI.SYNCED) {
-            if (Object.keys(cellDiffs).length > 0) {
-              pendingCellUpdates.push({
+            const cellDiffs: Record<string, any> = {};
+            for (const [colName, val] of Object.entries(updatedCells)) {
+              if (val !== undefined && val !== null && String(val) !== String(matchedRow.data[colName] || '')) {
+                cellDiffs[colName] = val;
+              }
+            }
+
+            if (Object.keys(cellDiffs).length > 0 || matchedRow.systemFields.status !== SYNC_STATUS_VI.SYNCED) {
+              if (Object.keys(cellDiffs).length > 0) {
+                pendingCellUpdates.push({
+                  rowIndex: matchedRow.rowIndex,
+                  columnValues: cellDiffs,
+                });
+              }
+
+              systemUpdates.push({
                 rowIndex: matchedRow.rowIndex,
-                columnValues: cellDiffs,
+                status: SYNC_STATUS_VI.SYNCED,
+                bitrixLeadId: lead.ID,
+                lastSyncTime: nowFormatted,
+                errorMessage: '',
+                syncHash: newHash,
               });
+              hasRowUpdated = true;
             }
-
-            systemUpdates.push({
-              rowIndex: matchedRow.rowIndex,
-              status: SYNC_STATUS_VI.SYNCED,
-              bitrixLeadId: lead.ID,
-              lastSyncTime: nowFormatted,
-              errorMessage: '',
-              syncHash: newHash,
-            });
+          }
+          if (hasRowUpdated) {
             updated++;
           }
         } else {

@@ -102,7 +102,7 @@ scripts/
 | **CLI Command**    | **nest-commander**          |      **v3.21.0**      | Lệnh CLI thủ công `npm run sync` (hỗ trợ cờ `-f, --force`).                                                                         |
 | **Validation**     | **Joi**                     |      **v18.2.8**      | Validate biến môi trường `.env` nghiêm ngặt khi khởi động.                                                                          |
 | **Logging**        | **Pino (nestjs-pino)**      |      **v5.1.0**       | Structured JSON log + Bảng Unicode tóm tắt tiếng Việt.                                                                              |
-| **Linter & Test**  | **oxlint + Vitest**         | **v1.82.0 / v4.1.11** | 25 test suites / 201 unit tests (100%), 0 lint error trên 79 files. Độ phủ Lines 96.35%, Stmts 95.83%, Branch 82.65%, Funcs 97.88%. |
+| **Linter & Test**  | **oxlint + Vitest**         | **v1.82.0 / v4.1.11** | 25 test suites / 206 unit tests (100%), 0 lint error trên 79 files. Độ phủ Lines 96.09%, Stmts 95.50%, Branch 81.93%, Funcs 98.00%. |
 
 ---
 
@@ -196,8 +196,8 @@ docker compose up -d --build
 | **Benchmark giữ data**              | `npm run benchmark -- --keep`    | Chạy benchmark và giữ nguyên 150 records để đối soát trên UI Sheet/CRM.                                                       |
 | **Benchmark tự dọn dẹp**            | `npm run benchmark -- --cleanup` | Chạy benchmark và tự động dọn dẹp sạch sẽ sau khi hoàn tất.                                                                   |
 | **Dọn dẹp Benchmark độc lập**       | `npm run benchmark:cleanup`      | Tiện ích xóa toàn bộ 150 leads benchmark trên CRM và 150 dòng test trên Sheet.                                                |
-| **Unit Tests**                      | `npm test`                       | Chạy toàn bộ **25 Test Suites / 201 Unit Tests** bằng Vitest (100% Pass).                                                     |
-| **Test Coverage**                   | `npm run test:cov`               | Báo cáo độ phủ mã nguồn (Lines: 96.35%, Stmts: 95.83%, Branch: 82.65%, Funcs: 97.88% - tất cả các file đều $\ge 70\%$).       |
+| **Unit Tests**                      | `npm test`                       | Chạy toàn bộ **25 Test Suites / 206 Unit Tests** bằng Vitest (100% Pass).                                                     |
+| **Test Coverage**                   | `npm run test:cov`               | Báo cáo độ phủ mã nguồn (Lines: 96.09%, Stmts: 95.50%, Branch: 81.93%, Funcs: 98.00% - tất cả các file đều $\ge 70\%$).       |
 | **E2E Tests**                       | `npm run test:e2e`               | Chạy 8 kịch bản kiểm thử tích hợp End-to-End API (100% Pass).                                                                 |
 | **Linter**                          | `npm run lint`                   | Kiểm tra chất lượng mã nguồn bằng `oxlint` (0 warning, 0 error trên 79 files).                                                |
 
@@ -427,18 +427,18 @@ Kiểm thử trực tiếp trên môi trường Live kết nối Google Sheets A
 ### 2. Kiểm Thử Đơn Vị & Tích Hợp (Unit & E2E Tests)
 
 - **Unit Test Suites:** **25/25 Test Files Passed (100%)**
-- **Unit Tests:** **201/201 Tests Passed (100%)**
+- **Unit Tests:** **206/206 Tests Passed (100%)**
 - **E2E Integration Tests:** **8/8 Tests Passed (100%)**
 - **Code Coverage:** Toàn bộ **100% các file mã nguồn** đều đạt **$\ge 70\%$** trên tất cả 4 tiêu chí (Statements, Branch, Functions, Lines).
-  - **Lines Coverage:** **96.35%**
-  - **Statements Coverage:** **95.83%**
-  - **Functions Coverage:** **97.88%**
-  - **Branch Coverage:** **82.65%**
+  - **Lines Coverage:** **96.09%**
+  - **Statements Coverage:** **95.50%**
+  - **Functions Coverage:** **98.00%**
+  - **Branch Coverage:** **81.93%**
 - **Linter & Code Quality:** `npm run lint` (**0 errors, 0 warnings** với `oxlint` trên **79 files**).
 
 <br/>
 
-![Báo cáo kết quả Unit Tests và Code Coverage Vitest V8](docs/images/unittests/result.png)
+![Báo cáo kết quả Unit Tests và Code Coverage Vitest V8](docs/images/unittests/result-test.png)
 
 ```bash
 # Chạy toàn bộ Unit Tests:

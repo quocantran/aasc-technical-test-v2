@@ -85,6 +85,31 @@ export class MappingService implements OnModuleInit {
     return this.config;
   }
 
+  // Returns primary unique sheet columns configured in mapping.json (without duplicate aliases for same field)
+  getConfiguredSheetColumns(): string[] {
+    const cols: string[] = [];
+    const seenBitrixFields = new Set<string>();
+    const seenSheetCols = new Set<string>();
+
+    for (const field of this.config.fields) {
+      const col = field.sheetColumn?.trim();
+      const bField = field.bitrixField?.trim();
+      if (!col) continue;
+
+      if (bField && seenBitrixFields.has(bField)) {
+        continue;
+      }
+
+      if (!seenSheetCols.has(col.toLowerCase())) {
+        cols.push(col);
+        seenSheetCols.add(col.toLowerCase());
+        if (bField) seenBitrixFields.add(bField);
+      }
+    }
+
+    return cols;
+  }
+
   // Transforms a row map into Bitrix field values and canonical object for hashing
   transformRow(rowValues: Record<string, any>): RowTransformationResult {
     const bitrixFields: Record<string, any> = {};
@@ -211,6 +236,14 @@ export class MappingService implements OnModuleInit {
         const parsedNumber = Number(cleanedNumber);
         if (!cleanedNumber || isNaN(parsedNumber) || !/^[+-]?\d+(\.\d+)?$/.test(cleanedNumber)) {
           errors.push(`Giá trị '${stringValue}' không phải là số hợp lệ cho cột '${field.sheetColumn}'`);
+          continue;
+        }
+        if (parsedNumber < 0) {
+          errors.push(`Giá trị '${stringValue}' không được là số âm cho cột '${field.sheetColumn}'`);
+          continue;
+        }
+        if (field.bitrixField === 'ASSIGNED_BY_ID' && (!Number.isInteger(parsedNumber) || parsedNumber <= 0)) {
+          errors.push(`Giá trị '${stringValue}' phải là ID người dùng hợp lệ (số nguyên dương) cho cột '${field.sheetColumn}'`);
           continue;
         }
         bitrixFields[field.bitrixField] = parsedNumber;

@@ -381,6 +381,20 @@ describe('MappingService', () => {
     expect(mappingService.getMappingConfig()).toEqual(validConfig);
     writeSpy.mockRestore();
   });
+
+  it('should return unique configured sheet columns filtering out aliases for same bitrixField', () => {
+    const configWithAliases: MappingConfiguration = {
+      fields: [
+        { sheetColumn: 'Tên khách hàng', bitrixField: 'NAME', type: 'string' },
+        { sheetColumn: 'Họ và tên', bitrixField: 'NAME', type: 'string' }, // alias for NAME
+        { sheetColumn: 'Email', bitrixField: 'EMAIL', type: 'multifield' },
+        { sheetColumn: 'Số điện thoại', bitrixField: 'PHONE', type: 'multifield' },
+      ],
+    };
+    mappingService.loadMappingConfig(configWithAliases);
+    const cols = mappingService.getConfiguredSheetColumns();
+    expect(cols).toEqual(['Tên khách hàng', 'Email', 'Số điện thoại']);
+  });
 });
 
 

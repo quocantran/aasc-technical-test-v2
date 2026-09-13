@@ -27,6 +27,19 @@ describe('date.helper', () => {
     expect(timestamp).toBe(new Date(iso).getTime());
   });
 
+  it('should parse Excel/Google Sheets serial date format (both comma and dot separators)', () => {
+    const serialDot = '46278.548796';
+    const serialComma = '46278,548796';
+    const tsDot = parseSyncDateTime(serialDot);
+    const tsComma = parseSyncDateTime(serialComma);
+    expect(tsDot).toBeGreaterThan(0);
+    expect(tsComma).toBe(tsDot);
+    const date = new Date(tsDot);
+    expect(date.getUTCFullYear()).toBe(2026);
+    expect(date.getUTCMonth()).toBe(8); // September (0-indexed)
+    expect(date.getUTCDate()).toBe(13);
+  });
+
   it('should return 0 for null or empty input', () => {
     expect(parseSyncDateTime(null)).toBe(0);
     expect(parseSyncDateTime('')).toBe(0);

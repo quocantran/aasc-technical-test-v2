@@ -20,8 +20,29 @@ export function normalizeVietnamesePhone(rawInput: any): PhoneNormalizationResul
     return { isValid: false, normalized: '', raw: '', error: ERROR_MESSAGES_VI.INVALID_PHONE_FORMAT };
   }
 
-  // Strips formatting characters (spaces, dashes, parentheses) except plus
-  const cleaned = rawStr.replace(REGEX_PATTERNS.CLEAN_PHONE_CHARS, '');
+  // Reject any string containing letters (e.g. 899123456fd) or illegal symbols
+  // Only digits, leading +, and formatting characters (spaces, dashes, dots, parentheses) are allowed
+  if (/[a-zA-Z]/.test(rawStr) || /[^\d+\s\-().]/.test(rawStr)) {
+    return {
+      isValid: false,
+      normalized: '',
+      raw: rawStr,
+      error: ERROR_MESSAGES_VI.INVALID_PHONE_FORMAT,
+    };
+  }
+
+  // Reject multiple plus signs or plus signs not at the beginning
+  if ((rawStr.match(/\+/g) || []).length > 1 || (rawStr.includes('+') && !rawStr.startsWith('+'))) {
+    return {
+      isValid: false,
+      normalized: '',
+      raw: rawStr,
+      error: ERROR_MESSAGES_VI.INVALID_PHONE_FORMAT,
+    };
+  }
+
+  // Strips allowed formatting characters (spaces, dashes, parentheses, dots)
+  const cleaned = rawStr.replace(/[\s\-().]/g, '');
 
   let nationalDigits = '';
   if (cleaned.startsWith('+84')) {

@@ -398,4 +398,46 @@ describe('ReverseSyncService', () => {
     const result = await service.execute(1234);
     expect(result.failed).toBe(1);
   });
+
+  it('should update all duplicate rows on Google Sheets that share the same Bitrix Lead ID', async () => {
+    mockGoogleSheetsService.readRows.mockResolvedValue({
+      rows: [
+        {
+          rowIndex: 2,
+          data: { 'Họ và tên': 'Đặng Quốc Hưng', 'Ngân sách': '250000000' },
+          systemFields: { bitrixLeadId: '765', status: SYNC_STATUS_VI.SYNCED, lastSyncTime: '01/01/2026 00:00:00', syncHash: 'oldhash' },
+        },
+        {
+          rowIndex: 3,
+          data: { 'Họ và tên': 'Đặng Quốc Hưng', 'Ngân sách': '250000000' },
+          systemFields: { bitrixLeadId: '765', status: SYNC_STATUS_VI.SYNCED, lastSyncTime: '01/01/2026 00:00:00', syncHash: 'oldhash' },
+        },
+      ],
+      headers: ['Họ và tên', 'Ngân sách'],
+      systemColumnIndices: {
+        [SYSTEM_COLUMNS.BITRIX_ID]: 2,
+        [SYSTEM_COLUMNS.STATUS]: 3,
+        [SYSTEM_COLUMNS.LAST_SYNC]: 4,
+        [SYSTEM_COLUMNS.ERROR]: 5,
+        [SYSTEM_COLUMNS.HASH]: 6,
+      },
+    });
+
+    mockBitrixLeadService.getLead.mockResolvedValue({
+      ID: '765',
+      NAME: 'Đặng Quốc Hưng VIP',
+      OPPORTUNITY: '2500000',
+      DATE_MODIFY: '2026-09-13T14:00:00Z',
+    });
+
+    const result = await service.execute(765);
+    expect(result.updated).toBe(1);
+    expect(mockGoogleSheetsService.batchUpdateRowsCells).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({ rowIndex: 2 }),
+        expect.objectContaining({ rowIndex: 3 }),
+      ]),
+      expect.any(Array),
+    );
+  });
 });

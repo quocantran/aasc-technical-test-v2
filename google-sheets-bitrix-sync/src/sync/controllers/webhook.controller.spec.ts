@@ -20,6 +20,7 @@ describe('WebhookController', () => {
     mockSyncOrchestrator = {
       runSync: vi.fn().mockResolvedValue({}),
       syncBitrixToSheets: vi.fn().mockResolvedValue({}),
+      consumeRecentlySyncedLead: vi.fn(),
     };
     mockLogger = {
       log: vi.fn(),
@@ -124,6 +125,7 @@ describe('WebhookController', () => {
 
     expect(response.status).toBe('ignored');
     expect(response.reason).toBe('self_echo');
+    expect(mockSyncOrchestrator.consumeRecentlySyncedLead).toHaveBeenCalledWith('1193');
     expect(mockSyncOrchestrator.runSync).not.toHaveBeenCalled();
     expect(mockSyncOrchestrator.syncBitrixToSheets).not.toHaveBeenCalled();
   });
