@@ -462,27 +462,44 @@ async function main() {
   console.log('--- TC7: KIỂM THỬ TẠO LẠI LEAD CÓ CHỦ ĐÍCH (USER CLEARS LEAD ID) ---');
   let reCreatedLeadId = null;
   try {
-    console.log('1. Người dùng xóa trắng ô Lead ID Bitrix24 và Trạng thái tại Row 12...');
-    const leadIdLetter = indexToA1(col.leadId);
-    const syncStatusLetter = indexToA1(col.syncStatus);
+    console.log('1. Đợi webhook CRM hoàn tất đồng bộ và người dùng xóa trắng ô Lead ID Bitrix24 tại Row 12...');
+    await sleep(3500);
+    const reCreatedEmail = `recreated.${Date.now()}@qasolutions.vn`;
+    const reCreatedPhone = `0977${String(Date.now()).slice(-6)}`;
+
+    // Đảm bảo Row 12 có đầy đủ thông tin nghiệp vụ với các cột hệ thống được xóa trắng (chủ đích tạo lại lead)
+    const businessCols = [
+      'Phan Văn Test QA',
+      'QA Solutions Vietnam',
+      reCreatedEmail,
+      reCreatedPhone,
+      'Website',
+      '75000000',
+      'Mới',
+      '1',
+      'Tạo lại lead sau khi xóa ID',
+      '0109988776',
+      'Công nghệ thông tin',
+    ];
 
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID,
-      range: `Leads!${syncStatusLetter}12`,
+      range: 'Leads!A12:K12',
       valueInputOption: 'USER_ENTERED',
-      requestBody: { values: [['']] },
+      requestBody: { values: [businessCols] },
     });
-    await sheets.spreadsheets.values.update({
+
+    await sheets.spreadsheets.values.clear({
       spreadsheetId: SPREADSHEET_ID,
-      range: `Leads!${leadIdLetter}12`,
-      valueInputOption: 'USER_ENTERED',
-      requestBody: { values: [['']] },
+      range: 'Leads!L12:Q12',
     });
 
     console.log('2. Kích hoạt đồng bộ...');
-    const sync7 = await triggerSync();
+    await sleep(1500);
+    const sync7 = await triggerSync(true);
     console.log('   Kết quả sync:', JSON.stringify(sync7.data));
     assert(sync7.data.created >= 1, `Hệ thống phải nhận diện đây là chủ đích tạo mới (created >= 1, thực tế: ${sync7.data.created})`);
+
 
     console.log('3. Kiểm tra Google Sheet Row 12 đã được cấp Lead ID mới chưa...');
     const row12NewRes = await sheets.spreadsheets.values.get({
@@ -1406,15 +1423,26 @@ async function main() {
       requestBody: { values: [originalRow2] },
     });
 
-    if (col.status >= 0) {
-      const statusLetter = indexToA1(col.status);
-      await sheets.spreadsheets.values.update({
-        spreadsheetId: SPREADSHEET_ID,
-        range: `Leads!${statusLetter}11`,
-        valueInputOption: 'USER_ENTERED',
-        requestBody: { values: [['Đang liên hệ']] },
-      });
-    }
+    const originalRow11 = new Array(headers.length).fill('');
+    if (col.name >= 0) originalRow11[col.name] = 'Đặng Quốc Hưng';
+    if (col.company >= 0) originalRow11[col.company] = 'Vận tải Hưng Thịnh';
+    if (col.email >= 0) originalRow11[col.email] = 'hung.dang@hungthinh.vn';
+    if (col.phone >= 0) originalRow11[col.phone] = '0899123456';
+    if (col.source >= 0) originalRow11[col.source] = 'Website';
+    if (col.opportunity >= 0) originalRow11[col.opportunity] = '25000000';
+    if (col.status >= 0) originalRow11[col.status] = 'Đang liên hệ';
+    if (col.assigned >= 0) originalRow11[col.assigned] = '1';
+    if (col.comments >= 0) originalRow11[col.comments] = 'Cần kết nối 20 máy nhánh';
+    if (col.tax >= 0) originalRow11[col.tax] = '0307778889';
+    if (col.industry >= 0) originalRow11[col.industry] = 'Dịch vụ';
+
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `Leads!A11:${endLetter}11`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: { values: [originalRow11] },
+    });
+
 
     console.log('5. Chạy sync đồng bộ chuẩn cuối cùng...');
     const finalSync = await triggerSync(true);
