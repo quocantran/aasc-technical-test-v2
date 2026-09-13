@@ -42,7 +42,7 @@
 
 - **Thư mục dự án:** [`bitrix24-workflow/`](./bitrix24-workflow)
 - **File đề bài gốc:** `V2 - Bai Kiem tra Xay dung Workflow tren Bitrix24 - Version 1.pdf`
-- **Tài liệu Báo Cáo chi tiết:** 📄 [`bitrix24-workflow/Report.pdf`](./bitrix24-workflow/Report.pdf)
+- **Tài liệu Báo Cáo chi tiết:** 📄 [`bitrix24-workflow/DOCS.pdf`](./bitrix24-workflow/DOCS.pdf)
 - **Các file nộp bài xuất từ Bitrix24 (Exported BP Files):**
   - **Quy trình 1: Nghỉ phép qua 3 cấp phê duyệt:**
     - **File Workflow:** [`bitrix24-workflow/NghiPhep_3Cap.bpt`](./bitrix24-workflow/NghiPhep_3Cap.bpt)
@@ -50,14 +50,12 @@
   - **Quy trình 2: Xin phê duyệt chi phí công tác qua 4 cấp phê duyệt:**
     - **File Workflow:** [`bitrix24-workflow/ChiPhiCongTac_4Cap.bpt`](./bitrix24-workflow/ChiPhiCongTac_4Cap.bpt)
     - **Luồng phê duyệt:** Nhân viên tạo yêu cầu công tác (đính kèm dự toán chi phí) $\rightarrow$ Quản lý trực tiếp (Cấp 1 - xét tính cần thiết) $\rightarrow$ Trưởng phòng Tài chính (Cấp 2 - kiểm tra ngân sách) $\rightarrow$ Phó Giám đốc Tài chính (Cấp 3 - tính hợp lý chi phí) $\rightarrow$ Giám đốc (Cấp 4 - phê duyệt cuối) $\rightarrow$ Thông báo chi tiết kết quả và kinh phí được duyệt.
-  - **Tài liệu hướng dẫn & Báo cáo:** File `Report.pdf` trình bày đầy đủ sơ đồ cấu trúc quy trình, biến số (variables), điều kiện kiểm tra logic, thông báo tự động và hướng dẫn chi tiết cách import file `.bpt` vào hệ thống Bitrix24 CRM.
-- **Chi tiết & Hướng dẫn triển khai:** Xem tại tài liệu [bitrix24-workflow/Report.pdf](./bitrix24-workflow/Report.pdf).
+  - **Tài liệu hướng dẫn & Báo cáo:** File `DOCS.pdf` trình bày đầy đủ sơ đồ cấu trúc quy trình, biến số (variables), điều kiện kiểm tra logic, thông báo tự động và hướng dẫn chi tiết cách import file `.bpt` vào hệ thống Bitrix24 CRM.
+- **Chi tiết & Hướng dẫn triển khai:** Xem tại tài liệu [bitrix24-workflow/DOCS.pdf](./bitrix24-workflow/DOCS.pdf).
 
 ---
 
 ## 👨💻 Thông Tin Tác Giả & Nộp Bài
 
 - **Ứng viên:** Trần Quốc An
-- **Vị trí ứng tuyển:** Backend / Fullstack Developer
-- **Đơn vị đánh giá:** AASC
 - **GitHub Repository:** [https://github.com/quocantran/aasc-technical-test-v2.git](https://github.com/quocantran/aasc-technical-test-v2.git)
