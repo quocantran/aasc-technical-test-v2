@@ -293,20 +293,20 @@ scripts/
 
 ## 🛠️ Công Nghệ Sử Dụng (Tech Stack) & Kiến Trúc Lựa Chọn (Architectural Rationale)
 
-| Thành Phần              | Công Nghệ / Thư Viện     |      Phiên Bản      | Lý Do Lựa Chọn & Phân Tích Kỹ Thuật (Architectural Rationale)                                                             |
-| :---------------------- | :----------------------- | :-----------------: | :------------------------------------------------------------------------------------------------------------------------ |
-| **Runtime**             | **Node.js**              |  **v20.x / v22.x**  | Non-blocking Event Loop xử lý hiệu quả lượng lớn kết nối I/O-bound webhooks đồng thời với mô hình bất đồng bộ; native crypto HMAC-SHA256 tối ưu.         |
-| **Framework**           | **NestJS Core**          |     **v12.0.1**     | Clean Architecture chuẩn Enterprise, module hóa độc lập, Dependency Injection mạnh mẽ cho phép đảo ngược phụ thuộc (DIP) và tráo đổi Adapters linh hoạt. |
-| **Ngôn Ngữ**            | **TypeScript**           |     **v6.0.2**      | Strict Type-Safety cấp độ biên dịch, giảm thiểu tối đa runtime bugs; decorator metadata hỗ trợ Swagger OpenAPI và DTO validation tự động.                |
-| **Cơ Sở Dữ Liệu**       | **PostgreSQL**           |    **v15 / v16**    | Ràng buộc ACID nghiêm ngặt, chỉ mục độc bản (Unique index) làm nền tảng cho Database-First Idempotency; cột `JSONB` tối ưu cho dynamic schema.           |
-| **ORM**                 | **Prisma ORM**           |     **v5.22.0**     | Type-safe Query Builder giảm thiểu SQL Injection, hỗ trợ migration declarative nhất quán và tích hợp transaction an toàn (`prisma.$transaction`).        |
-| **Hàng Đợi & Quota**    | **BullMQ + Redis**       | **v5.34.4 / v7.x**  | In-memory message broker độ trễ thấp, tích hợp Token Bucket Rate Limiting (2 RPS cho Bitrix API), Backoff Jitter Retry và Dead Letter Queue.             |
-| **Giám Sát (Metrics)**  | **Prometheus + Grafana** |  **v2.51 / v10.4**  | Thu thập real-time metrics độ trễ HTTP, Queue Lag, Rate Limit Contention qua `/metrics`; Dashboard trực quan giám sát toàn diện tại port 3001.           |
-| **Tài Liệu API**        | **Swagger / OpenAPI**    |     **v12.0.1**     | Tự động sinh tài liệu tương tác chuẩn OpenAPI 3.0 tại `/docs` và xuất schema tĩnh `docs/swagger.json` cho client SDK generation.                         |
-| **Lập Lịch Ngầm**       | **@nestjs/schedule**     |     **v12.0.1**     | Điều phối Cron jobs phi tập trung định kỳ: sinh báo cáo phễu chuyển đổi hàng ngày và kích hoạt giám sát cảnh báo ngưỡng lỗi hệ thống tự động.            |
-| **Logging Chuẩn Hóa**   | **Pino (nestjs-pino)**   | **v10.3.1 / v5.1**  | Structured JSON Logging tốc độ vượt trội, hỗ trợ log correlation ID và trace context phân tán.                                                           |
+| Thành Phần              | Công Nghệ / Thư Viện     |      Phiên Bản      | Lý Do Lựa Chọn & Phân Tích Kỹ Thuật (Architectural Rationale)                                                                                                                     |
+| :---------------------- | :----------------------- | :-----------------: | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Runtime**             | **Node.js**              |  **v20.x / v22.x**  | Non-blocking Event Loop xử lý hiệu quả lượng lớn kết nối I/O-bound webhooks đồng thời với mô hình bất đồng bộ; native crypto HMAC-SHA256 tối ưu.                                  |
+| **Framework**           | **NestJS Core**          |     **v12.0.1**     | Clean Architecture chuẩn Enterprise, module hóa độc lập, Dependency Injection mạnh mẽ cho phép đảo ngược phụ thuộc (DIP) và tráo đổi Adapters linh hoạt.                          |
+| **Ngôn Ngữ**            | **TypeScript**           |     **v6.0.2**      | Strict Type-Safety cấp độ biên dịch, giảm thiểu tối đa runtime bugs; decorator metadata hỗ trợ Swagger OpenAPI và DTO validation tự động.                                         |
+| **Cơ Sở Dữ Liệu**       | **PostgreSQL**           |    **v15 / v16**    | Ràng buộc ACID nghiêm ngặt, chỉ mục độc bản (Unique index) làm nền tảng cho Database-First Idempotency; cột `JSONB` tối ưu cho dynamic schema.                                    |
+| **ORM**                 | **Prisma ORM**           |     **v5.22.0**     | Type-safe Query Builder giảm thiểu SQL Injection, hỗ trợ migration declarative nhất quán và tích hợp transaction an toàn (`prisma.$transaction`).                                 |
+| **Hàng Đợi & Quota**    | **BullMQ + Redis**       | **v5.34.4 / v7.x**  | In-memory message broker độ trễ thấp, tích hợp Token Bucket Rate Limiting (2 RPS cho Bitrix API), Backoff Jitter Retry và Dead Letter Queue.                                      |
+| **Giám Sát (Metrics)**  | **Prometheus + Grafana** |  **v2.51 / v10.4**  | Thu thập real-time metrics độ trễ HTTP, Queue Lag, Rate Limit Contention qua `/metrics`; Dashboard trực quan giám sát toàn diện tại port 3001.                                    |
+| **Tài Liệu API**        | **Swagger / OpenAPI**    |     **v12.0.1**     | Tự động sinh tài liệu tương tác chuẩn OpenAPI 3.0 tại `/docs` và xuất schema tĩnh `docs/swagger.json` cho client SDK generation.                                                  |
+| **Lập Lịch Ngầm**       | **@nestjs/schedule**     |     **v12.0.1**     | Điều phối Cron jobs phi tập trung định kỳ: sinh báo cáo phễu chuyển đổi hàng ngày và kích hoạt giám sát cảnh báo ngưỡng lỗi hệ thống tự động.                                     |
+| **Logging Chuẩn Hóa**   | **Pino (nestjs-pino)**   | **v10.3.1 / v5.1**  | Structured JSON Logging tốc độ vượt trội, hỗ trợ log correlation ID và trace context phân tán.                                                                                    |
 | **Testing Framework**   | **Jest + @swc/jest**     | **v30.5 / v0.2.39** | **50 test suites / 295 unit tests + 41 E2E tests (100% Pass)**, **100% file đạt > 70% Branch Coverage (Tổng thể: 88.75% Branch, 97.88% Stmts)**; SWC tăng tốc độ chạy test suite. |
-| **Đóng Gói Triển Khai** | **Docker & Compose**     |   **Multi-stage**   | Multi-stage build tối ưu kích thước image, cô lập môi trường chuẩn, tích hợp sẵn Healthchecks cho cả PostgreSQL, Redis và App.                           |
+| **Đóng Gói Triển Khai** | **Docker & Compose**     |   **Multi-stage**   | Multi-stage build tối ưu kích thước image, cô lập môi trường chuẩn, tích hợp sẵn Healthchecks cho cả PostgreSQL, Redis và App.                                                    |
 
 ---
 
@@ -348,16 +348,35 @@ Bảng mô tả các biến môi trường quan trọng:
 | `BITRIX_MAX_RETRIES`            | `3`                                                                               | Số lần thử lại tối đa khi CRM gặp lỗi mạng tạm thời hoặc 5xx            |
 | `QUEUE_CONCURRENCY`             | `5`                                                                               | Số lượng jobs xử lý đồng thời trong mỗi BullMQ Worker                   |
 
-### 3. Khởi Tạo Cơ Sở Dữ Liệu & Seed Data
+### 3. Khởi Tạo Cơ Sở Dữ Liệu & Database Migrations
+
+Hệ thống quản lý phiên bản cơ sở dữ liệu qua **Prisma Migrations** (lưu trữ toàn bộ DDL đã version hóa tại thư mục `prisma/migrations/`). Bạn có thể lựa chọn 1 trong 2 phương thức khởi tạo:
+
+#### Lựa chọn A: Triển khai chuẩn Production / CI-CD (Khuyên dùng - Prisma Migrate)
+
+Áp dụng toàn bộ các file migration chính thống từ `prisma/migrations/20260912_init/`:
 
 ```bash
-# Sinh Prisma Client
+# 1. Sinh Prisma Client typesafe
+npm run prisma:generate
+
+# 2. Thực thi migrations chính thống lên PostgreSQL
+npm run prisma:deploy
+# Hoặc: npx prisma migrate deploy
+
+# 3. Nạp cấu hình mẫu ban đầu (Runtime Field Mappings & Deal Rules)
+npm run prisma:seed
+```
+
+> 💡 **Dành cho Phát Triển (Development):** Khi có thay đổi trong `schema.prisma`, chạy `npm run prisma:migrate` (tương đương `npx prisma migrate dev`) để tự động sinh file migration mới và kiểm soát lịch sử thay đổi schema.
+
+#### Lựa chọn B: Đồng bộ trực tiếp không kiểm tra Migration History (`db push`)
+
+Dành cho môi trường đánh giá / review bài test nhanh hoặc Docker bootstrap không cần kiểm tra hash bảng `_prisma_migrations`:
+
+```bash
 npx prisma generate
-
-# Đồng bộ schema vào PostgreSQL
 npx prisma db push
-
-# Nạp cấu hình mẫu (Field mappings & Deal rules)
 npm run prisma:seed
 ```
 
@@ -391,21 +410,24 @@ npm run start:prod
 
 ## 💻 Các Lệnh Thao Tác, Kiểm Thử & CLI Simulators
 
-| Mục Đích Thao Tác            | Câu Lệnh npm                                                  | Mô Tả Chi Tiết                                                                           |
-| :--------------------------- | :------------------------------------------------------------ | :--------------------------------------------------------------------------------------- |
-| **Chạy Unit Tests**          | `npm test`                                                    | Thực thi **295 unit tests** trên toàn bộ **50 test suites** bằng Jest + SWC (100% Pass). |
-| **Đo Độ Phủ Coverage**       | `npm run test:cov`                                            | Đo độ phủ mã nguồn: **98.30% Lines, 97.88% Statements, 88.75% Branches, 98.46% Funcs** (100% file > 70% branch).  |
-| **Chạy E2E Tests**           | `npm run test:e2e`                                            | Kiểm thử toàn diện **41 kịch bản E2E & Edge Cases** bằng Jest + Supertest (100% Pass).   |
-| **Chạy System QA Tests**     | `npm run test:system`                                         | Chạy bộ **27 bài kiểm thử hệ thống tự động** kiểm tra toàn bộ luồng tích hợp thực tế trên DB & CRM thật. |
-| **Đo Hiệu Năng (Benchmark)** | `npm run test:perf`                                           | Bắn tải đồng thời **200 requests (20 workers)** đo lường thông lượng (94.43 req/s) và độ trễ P95/P99. |
-| **Dọn Dẹp Dữ Liệu Test**     | `npm run clean:test-data`                                     | Tự động dọn dẹp sạch sẽ dữ liệu test trên Bitrix24 CRM, PostgreSQL và Redis.             |
-| **Kiểm Tra ESLint**          | `npm run lint`                                                | Kiểm tra chất lượng mã nguồn bằng ESLint (0 errors, 0 warnings).                         |
-| **Xuất OpenAPI Swagger**     | `npm run swagger:export`                                      | Trích xuất OpenAPI JSON schema lưu vào file `docs/swagger.json`.                         |
-| **Giả Lập TikTok Webhook**   | `npm run simulate:tiktok`                                     | Tự động sinh payload chuẩn và chữ ký HMAC-SHA256 gửi tới webhook receiver.               |
-| **Test Event Form Hoàn Tất** | `npx tsx scripts/simulate-tiktok-webhook.ts form.complete`    | Giả lập sự kiện form submission brochure download.                                       |
-| **Test Event Tương Tác**     | `npx tsx scripts/simulate-tiktok-webhook.ts user.interaction` | Giả lập sự kiện người dùng điền khảo sát trên TikTok.                                    |
-| **Giả Lập Bitrix Deal WON**  | `npm run simulate:bitrix 5001 WON`                            | Giả lập webhook Bitrix khi Deal đạt trạng thái WON để kích hoạt TikTok Events.           |
-| **Biên Dịch Dự Án**          | `npm run build`                                               | Biên dịch toàn bộ mã nguồn TypeScript sang thư mục `dist/`.                              |
+| Mục Đích Thao Tác            | Câu Lệnh npm                                                  | Mô Tả Chi Tiết                                                                                                   |
+| :--------------------------- | :------------------------------------------------------------ | :--------------------------------------------------------------------------------------------------------------- |
+| **Chạy Unit Tests**          | `npm test`                                                    | Thực thi **295 unit tests** trên toàn bộ **50 test suites** bằng Jest + SWC (100% Pass).                         |
+| **Đo Độ Phủ Coverage**       | `npm run test:cov`                                            | Đo độ phủ mã nguồn: **98.30% Lines, 97.88% Statements, 88.75% Branches, 98.46% Funcs** (100% file > 70% branch). |
+| **Chạy E2E Tests**           | `npm run test:e2e`                                            | Kiểm thử toàn diện **41 kịch bản E2E & Edge Cases** bằng Jest + Supertest (100% Pass).                           |
+| **Chạy System QA Tests**     | `npm run test:system`                                         | Chạy bộ **27 bài kiểm thử hệ thống tự động** kiểm tra toàn bộ luồng tích hợp thực tế trên DB & CRM thật.         |
+| **Đo Hiệu Năng (Benchmark)** | `npm run test:perf`                                           | Bắn tải đồng thời **200 requests (20 workers)** đo lường thông lượng (94.43 req/s) và độ trễ P95/P99.            |
+| **Dọn Dẹp Dữ Liệu Test**     | `npm run clean:test-data`                                     | Tự động dọn dẹp sạch sẽ dữ liệu test trên Bitrix24 CRM, PostgreSQL và Redis.                                     |
+| **Kiểm Tra ESLint**          | `npm run lint`                                                | Kiểm tra chất lượng mã nguồn bằng ESLint (0 errors, 0 warnings).                                                 |
+| **Xuất OpenAPI Swagger**     | `npm run swagger:export`                                      | Trích xuất OpenAPI JSON schema lưu vào file `docs/swagger.json`.                                                 |
+| **Giả Lập TikTok Webhook**   | `npm run simulate:tiktok`                                     | Tự động sinh payload chuẩn và chữ ký HMAC-SHA256 gửi tới webhook receiver.                                       |
+| **Test Event Form Hoàn Tất** | `npx tsx scripts/simulate-tiktok-webhook.ts form.complete`    | Giả lập sự kiện form submission brochure download.                                                               |
+| **Test Event Tương Tác**     | `npx tsx scripts/simulate-tiktok-webhook.ts user.interaction` | Giả lập sự kiện người dùng điền khảo sát trên TikTok.                                                            |
+| **Giả Lập Bitrix Deal WON**  | `npm run simulate:bitrix 5001 WON`                            | Giả lập webhook Bitrix khi Deal đạt trạng thái WON để kích hoạt TikTok Events.                                   |
+| **Chạy DB Migration (Prod)** | `npm run prisma:deploy`                                       | Thực thi toàn bộ database migrations lên PostgreSQL (chuẩn Production / CI-CD).                                  |
+| **Tạo DB Migration (Dev)**   | `npm run prisma:migrate`                                      | Chạy `prisma migrate dev` tự động sinh migration mới khi thay đổi schema.                                        |
+| **Prisma Studio GUI**        | `npm run prisma:studio`                                       | Khởi chạy giao diện web trực quan quản lý dữ liệu PostgreSQL tại cổng `5555`.                                    |
+| **Biên Dịch Dự Án**          | `npm run build`                                               | Biên dịch toàn bộ mã nguồn TypeScript sang thư mục `dist/`.                                                      |
 
 ---
 
@@ -512,28 +534,6 @@ Toàn bộ **50 test suites** và **295 unit tests** đều vượt qua thành c
 
 ![Unit Test Coverage Report](docs/images/unit-test.png)
 
-| Nhóm Module / Thư Mục | % Statements | % Branch | % Functions | % Lines | Trạng Thái (> 70% Branch) |
-| :--- | :---: | :---: | :---: | :---: | :---: |
-| **Toàn Bộ Dự Án (All files)** | **97.88%** | **88.75%** | **98.46%** | **98.30%** | **ĐẠT XUẤT SẮC** |
-| `common/decorators` (API Key Decorator) | 100% | 100% | 100% | 100% | **100% PASS** |
-| `common/filters` (Http & Prisma Client Exception) | 100% | 96.66% | 100% | 100% | **96.66% PASS** |
-| `common/guards` (API Key, Rate Limit, Signature) | 100% | 92.72% | 100% | 100% | **92.72% PASS** |
-| `common/interceptors` (Logging & Response Transform) | 100% | 89.47% | 100% | 100% | **89.47% PASS** |
-| `common/logger` (AppLogger Pino Service) | 100% | 100% | 100% | 100% | **100% PASS** |
-| `common/normalizers` (Phone E.164, Email, Sanitizer) | 87.71% | 84.78% | 100% | 96.00% | **84.78% PASS** |
-| `common/redis` (RedisService & Distributed Locks) | 100% | 93.33% | 100% | 100% | **93.33% PASS** |
-| `database` (Prisma Database Service) | 100% | 100% | 100% | 100% | **100% PASS** |
-| `modules/analytics` (Funnel, Reports Export, Cron) | 96.39% | 87.78% | 94.73% | 96.33% | **87.78% PASS** |
-| `modules/bitrix` (HTTP, Webhooks, Rate Limiter, Adapters) | 99.05% | 89.08% | 98.03% | 99.34% | **89.08% PASS** |
-| `modules/config-mgmt` (Runtime Field Mapping & Rules) | 98.00% | 92.85% | 100% | 98.00% | **92.85% PASS** |
-| `modules/deal` (Deal Service & Conversion Pipeline) | 94.65% | 88.39% | 100% | 95.12% | **88.39% PASS** |
-| `modules/lead` (Lead Management & Batch Migration) | 97.11% | 90.07% | 100% | 96.84% | **90.07% PASS** |
-| `modules/metrics` (Prometheus Metrics Service) | 97.56% | 87.50% | 83.33% | 97.56% | **87.50% PASS** |
-| `modules/queue` (BullMQ Workers & Schedulers) | 100% | 76.47% | 100% | 100% | **76.47% PASS** |
-| `modules/rule-engine` (JSON Logic Evaluator) | 98.86% | 85.29% | 100% | 100% | **85.29% PASS** |
-| `modules/tiktok-events` (TikTok Events Adapters & Service) | 100% | 94.44% | 100% | 100% | **94.44% PASS** |
-| `modules/tiktok` (Webhook Controllers & Ingestion) | 100% | 100% | 100% | 100% | **100% PASS** |
-
 ---
 
 ### 2. Kiểm Thử Toàn Trình & Trường Hợp Biên (E2E & Boundary Test Suite)
@@ -542,19 +542,6 @@ Bộ kiểm thử E2E độc lập bao phủ **41 kịch bản kiểm thử toà
 
 ![E2E Test Results](docs/images/e2e-test.png)
 
-#### Bảng Tổng Hợp 41 Kịch Bản E2E & Edge Cases:
-
-| Nhóm Kiểm Thử | Số Tests | Các Trường Hợp Kiểm Thử Tiêu Biểu | Kết Quả Thực Tế |
-| :--- | :---: | :--- | :---: |
-| **Bảo Mật & Xác Thực** | 6 | Xác thực chữ ký `TikTok-Signature` HMAC-SHA256 (hợp lệ, sai chữ ký, thiếu chữ ký); Kiểm soát header quản trị `x-api-key`; Xác thực token `application_token` của Bitrix24 Webhook. | **100% PASS (401/200)** |
-| **Đa Dạng Webhook & Idempotency** | 4 | Tiếp nhận các loại sự kiện TikTok (`lead.generate`, `form.complete`, `user.interaction`); Chống nạp trùng lặp bản ghi theo cơ chế Database-First Idempotency. | **100% PASS** |
-| **Tra Cứu Đa Kênh & Lọc Biên** | 5 | Tra cứu Lead/Deal theo UUID; Tra cứu Lead theo ID số Bitrix (`/api/v1/leads/1039`); Tra cứu Deal theo ID số Bitrix (`/api/v1/deals/5001`); Xử lý ID không tồn tại trả về `404 Not Found` sạch sẽ. | **100% PASS** |
-| **Bắt Lỗi Định Dạng & Triệt Tiêu Lỗi 500** | 4 | Truy vấn `GET /api/v1/leads/batch-migrate/12` (ID số không phải UUID) $\rightarrow$ Trả về **`404 Not Found`** thay vì lỗi `500 P2023`; Xử lý chuỗi UUID sai format không làm sập Database connection. | **100% PASS (No 500)** |
-| **Kiểm Định DTO & Giới Hạn Boundary** | 5 | Chặn `batchSize > 200` và `batchSize < 1` với `400 Bad Request`; Chặn định dạng ngày `dateFrom` sai chuẩn ISO; Chặn số tiền Deal âm hoặc sai kiểu dữ liệu với `400 Bad Request`. | **100% PASS (400 Bad Request)** |
-| **Quy Trình Chuyển Đổi Deal & Phân Trang** | 6 | Chuyển đổi thủ công Lead sang Deal; Chuyển đổi bằng ID Bitrix `1039`; Chặn chuyển đổi Lead không tồn tại; Phân trang biên với số trang cực lớn (`page=9999`) trả về mảng rỗng an toàn. | **100% PASS** |
-| **Xuất Báo Cáo File Excel & CSV** | 5 | Mặc định xuất file Excel (`.xlsx`); Stream dữ liệu nhị phân Excel thật (`application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`); Fallback an toàn khi tham số `format` không xác định. | **100% PASS** |
-| **Cấu Hình Động & Giám Sát Metrics** | 6 | Cập nhật ánh xạ trường `field_mapping`; Cập nhật quy tắc `deal_rules`; Trích xuất Prometheus Metrics tại `/metrics` (200 OK); Healthcheck `/api/v1/health` (200 OK). | **100% PASS** |
-
 ---
 
 ### 3. Kiểm Thử Tải Đồng Thời (High-Concurrency Live Benchmark)
@@ -562,21 +549,6 @@ Bộ kiểm thử E2E độc lập bao phủ **41 kịch bản kiểm thử toà
 Kịch bản kiểm thử áp lực cao (Load Test) mô phỏng đợt bùng nổ chiến dịch quảng cáo TikTok Ads với **200 leads** được bắn đồng thời qua **20 workers kết nối song song** (`concurrency: 20`) vào endpoint tiếp nhận webhook `/webhooks/tiktok/leads`.
 
 ![High-Concurrency Benchmark](docs/images/benchmark.png)
-
-#### Bảng Chỉ Số Đo Lường Hiệu Năng Thực Tế:
-
-| Tiêu Chí Đo Lường (Benchmark Metric) | Giá Trị Thực Tế Đạt Được | Ý Nghĩa Kỹ Thuật & Đánh Giá Vận Hành |
-| :--- | :---: | :--- |
-| **Tổng Số Request Đã Gửi (Total Requests)** | **200 requests** | Bắn tải liên tục không ngắt quãng qua 20 kết nối HTTP đồng thời. |
-| **Tỷ Lệ Tiếp Nhận Thành Công (Success Rate)** | **200 / 200 (100.0%)** | **0 request lỗi**, không có bất kỳ hiện tượng rớt kết nối hoặc crash server. |
-| **Tổng Thời Gian Hoàn Tất (Elapsed Time)** | **2.12 giây** | Thời gian xử lý thần tốc cho toàn bộ 200 webhook events. |
-| **Thông Lượng Hệ Thống (Throughput - RPS)** | **94.43 req/giây** | Khả năng nuốt tải xuất sắc trên môi trường Node.js Single Instance. |
-| **Độ Trễ Tối Thiểu (Min Latency)** | **122 ms** | Thời gian phản hồi nhanh nhất khi tiếp nhận và lưu DB. |
-| **Độ Trễ Trung Bình (Average Latency)** | **200.05 ms** | Phản hồi trung bình ổn định dưới 250ms cho người dùng. |
-| **Phân Vị Độ Trễ 50% (p50 Median)** | **190 ms** | 50% số lượng request được phản hồi trong vòng dưới 190ms. |
-| **Phân Vị Độ Trễ 95% (p95 Latency)** | **281 ms** | 95% số lượng request phản hồi dưới 281ms (dưới ngưỡng 500ms khuyến nghị). |
-| **Phân Vị Độ Trễ 99% (p99 Latency)** | **324 ms** | 99% số lượng request phản hồi dưới 324ms trong điều kiện tải cao nhất. |
-| **Độ Trễ Lớn Nhất (Max Latency)** | **334 ms** | Không có hiện tượng spike trễ quá 350ms, đảm bảo an toàn tuyệt đối trước timeout TikTok. |
 
 ---
 
@@ -604,14 +576,14 @@ Toàn bộ cấu hình Prometheus và Grafana đã được đóng gói sẵn (*
 
 ### 2. Các Chỉ Số Cốt Lõi Được Trực Quan Hóa Trên Dashboard
 
-| Panel Dashboard                         | Loại Metric Prometheus                          | Ý Nghĩa Vận Hành & Giá Trị Giám Sát Thực Tiễn                                                                                       |
-| :-------------------------------------- | :---------------------------------------------- | :---------------------------------------------------------------------------------------------------------------------------------- |
-| **BullMQ Queue Lag & Backlog**          | `bullmq_queue_jobs_total{status="waiting"}`     | Số lượng jobs đang xếp hàng chờ xử lý trên 4 queues (`lead-processing`, `bitrix-sync`, `deal-conversion`, `tiktok-events-sync`). Cảnh báo quá tải. |
-| **Bitrix24 Rate Limit Contention**      | `bitrix_rate_limit_waits_total`                 | Tần suất các request phải xếp hàng chờ trong Token Bucket (2 RPS) của Bitrix24. Giúp đánh giá áp lực lưu lượng lên CRM đối tác.                    |
-| **HTTP Request Latency (p95 / p99)**    | `http_request_duration_seconds{quantile="..."}` | Phân phối độ trễ xử lý các HTTP endpoints. Đảm bảo Webhook Ingestion luôn phản hồi nhanh chóng (dưới ngưỡng timeout) để tránh bị TikTok retry spam.|
-| **Dead Letter Queue (DLQ) Accumulator** | `bullmq_dlq_jobs_total`                         | Số lượng background jobs kiệt quệ retry (thất bại $\ge 3$ lần). Kích hoạt alert khẩn cấp cho đội ngũ trực On-call can thiệp.                       |
-| **Lead Conversion Funnel Realtime**     | `sync_leads_total{status="won\|deal\|lead"}`    | Biểu đồ phễu kinh doanh: TikTok Leads $\rightarrow$ Leads Synced $\rightarrow$ Deals Created $\rightarrow$ Deals Won theo thời gian thực.          |
-| **Distributed Lock Contention Rate**    | `redis_lock_acquire_duration_seconds`           | Đo lường độ trễ và tỷ lệ va chạm khóa phân tán giữa các worker pods song song.                                                                     |
+| Panel Dashboard                         | Loại Metric Prometheus                          | Ý Nghĩa Vận Hành & Giá Trị Giám Sát Thực Tiễn                                                                                                       |
+| :-------------------------------------- | :---------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **BullMQ Queue Lag & Backlog**          | `bullmq_queue_jobs_total{status="waiting"}`     | Số lượng jobs đang xếp hàng chờ xử lý trên 4 queues (`lead-processing`, `bitrix-sync`, `deal-conversion`, `tiktok-events-sync`). Cảnh báo quá tải.  |
+| **Bitrix24 Rate Limit Contention**      | `bitrix_rate_limit_waits_total`                 | Tần suất các request phải xếp hàng chờ trong Token Bucket (2 RPS) của Bitrix24. Giúp đánh giá áp lực lưu lượng lên CRM đối tác.                     |
+| **HTTP Request Latency (p95 / p99)**    | `http_request_duration_seconds{quantile="..."}` | Phân phối độ trễ xử lý các HTTP endpoints. Đảm bảo Webhook Ingestion luôn phản hồi nhanh chóng (dưới ngưỡng timeout) để tránh bị TikTok retry spam. |
+| **Dead Letter Queue (DLQ) Accumulator** | `bullmq_dlq_jobs_total`                         | Số lượng background jobs kiệt quệ retry (thất bại $\ge 3$ lần). Kích hoạt alert khẩn cấp cho đội ngũ trực On-call can thiệp.                        |
+| **Lead Conversion Funnel Realtime**     | `sync_leads_total{status="won\|deal\|lead"}`    | Biểu đồ phễu kinh doanh: TikTok Leads $\rightarrow$ Leads Synced $\rightarrow$ Deals Created $\rightarrow$ Deals Won theo thời gian thực.           |
+| **Distributed Lock Contention Rate**    | `redis_lock_acquire_duration_seconds`           | Đo lường độ trễ và tỷ lệ va chạm khóa phân tán giữa các worker pods song song.                                                                      |
 
 ---
 
@@ -684,14 +656,14 @@ flowchart TD
     end
 ```
 
-| Tiêu Chí So Sánh | BullMQ + Redis (Hiện Tại) | Apache Kafka (Lộ Trình Nâng Cấp Enterprise) |
-| :--- | :--- | :--- |
-| **Bản Chất Kiến Trúc** | In-memory Task Queue & Job Scheduler | Distributed Append-Only Commit Log & Event Streaming Platform |
-| **Thế Mạnh Cốt Lõi** | Điều phối tác vụ, Delayed Jobs, Rate Limiting token bucket chính xác cho API đối tác, quản lý vòng đời job đơn giản. | Streaming dữ liệu thông lượng cực cao (High Throughput) nhờ kiến trúc Sequential Disk I/O và Zero-Copy Network Transfer, không bị giới hạn bởi RAM in-memory. |
-| **Lưu Trữ & Khả Năng Replay Message** | Job bị xóa sau khi hoàn tất hoặc lưu giữ ngắn hạn. Không thiết kế cho việc phát lại luồng dữ liệu lịch sử. | **Event Replay Bất Biến:** Lưu trữ log lâu dài trên đĩa cứng. Cho phép tua lại offset (`seek to earliest`) để phát lại toàn bộ sự kiện khi CRM đối tác gặp sự cố kéo dài hoặc khi migrate sang CRM mới (Salesforce, HubSpot) mà không cần nguồn phát TikTok gửi lại webhook. |
-| **Mô Hình Tiêu Thụ (Consumers)** | Point-to-Point Queue: Mỗi job chỉ được xử lý bởi một worker duy nhất trong queue. | **Multiple Independent Consumer Groups:** Cùng một sự kiện TikTok Lead, nhiều hệ thống khác nhau (CRM Sync, Data Lake ETL, Fraud Detection, Marketing SMS) có thể tiêu thụ song song độc lập với tốc độ riêng biệt mà không ảnh hưởng lẫn nhau. |
-| **Quản Lý Trạng Thái Dữ Liệu** | Quản lý theo vòng đời job (waiting, active, failed). | Hỗ trợ **Log Compaction** để duy trì bản ghi trạng thái mới nhất cho mỗi Lead ID theo mô hình Event Sourcing. |
-| **Kiến Trúc Tối Ưu Đề Xuất** | Độc lập đảm nhiệm toàn bộ quy trình nhận lead và sync CRM. | **Hybrid Architecture:** Kafka làm Ingestion Event Bus lưu trữ sự kiện thô bất biến $\rightarrow$ Consumer đẩy vào BullMQ để điều phối nhịp độ gọi API sang Bitrix24 theo đúng quota 2 RPS. |
+| Tiêu Chí So Sánh                      | BullMQ + Redis (Hiện Tại)                                                                                            | Apache Kafka (Lộ Trình Nâng Cấp Enterprise)                                                                                                                                                                                                                                  |
+| :------------------------------------ | :------------------------------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Bản Chất Kiến Trúc**                | In-memory Task Queue & Job Scheduler                                                                                 | Distributed Append-Only Commit Log & Event Streaming Platform                                                                                                                                                                                                                |
+| **Thế Mạnh Cốt Lõi**                  | Điều phối tác vụ, Delayed Jobs, Rate Limiting token bucket chính xác cho API đối tác, quản lý vòng đời job đơn giản. | Streaming dữ liệu thông lượng cực cao (High Throughput) nhờ kiến trúc Sequential Disk I/O và Zero-Copy Network Transfer, không bị giới hạn bởi RAM in-memory.                                                                                                                |
+| **Lưu Trữ & Khả Năng Replay Message** | Job bị xóa sau khi hoàn tất hoặc lưu giữ ngắn hạn. Không thiết kế cho việc phát lại luồng dữ liệu lịch sử.           | **Event Replay Bất Biến:** Lưu trữ log lâu dài trên đĩa cứng. Cho phép tua lại offset (`seek to earliest`) để phát lại toàn bộ sự kiện khi CRM đối tác gặp sự cố kéo dài hoặc khi migrate sang CRM mới (Salesforce, HubSpot) mà không cần nguồn phát TikTok gửi lại webhook. |
+| **Mô Hình Tiêu Thụ (Consumers)**      | Point-to-Point Queue: Mỗi job chỉ được xử lý bởi một worker duy nhất trong queue.                                    | **Multiple Independent Consumer Groups:** Cùng một sự kiện TikTok Lead, nhiều hệ thống khác nhau (CRM Sync, Data Lake ETL, Fraud Detection, Marketing SMS) có thể tiêu thụ song song độc lập với tốc độ riêng biệt mà không ảnh hưởng lẫn nhau.                              |
+| **Quản Lý Trạng Thái Dữ Liệu**        | Quản lý theo vòng đời job (waiting, active, failed).                                                                 | Hỗ trợ **Log Compaction** để duy trì bản ghi trạng thái mới nhất cho mỗi Lead ID theo mô hình Event Sourcing.                                                                                                                                                                |
+| **Kiến Trúc Tối Ưu Đề Xuất**          | Độc lập đảm nhiệm toàn bộ quy trình nhận lead và sync CRM.                                                           | **Hybrid Architecture:** Kafka làm Ingestion Event Bus lưu trữ sự kiện thô bất biến $\rightarrow$ Consumer đẩy vào BullMQ để điều phối nhịp độ gọi API sang Bitrix24 theo đúng quota 2 RPS.                                                                                  |
 
 ### 5. Khả Năng Tự Phục Hồi & Giám Sát Nâng Cao
 
