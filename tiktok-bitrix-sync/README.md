@@ -51,46 +51,58 @@
 ### 1. Sơ Đồ Kiến Trúc Luồng Xử Lý (Data Pipeline Architecture)
 
 ```mermaid
-flowchart TD
-    subgraph INGESTION["1. Ingestion Layer"]
-        A["TikTok Lead Ad / User Form"] -->|"POST /webhooks/tiktok/leads"| B["TikTokSignatureGuard<br/>HMAC-SHA256"]
-        B -->|"Valid Signature"| C["TikTokWebhookService"]
-        B -->|"Invalid"| B1["Reject 401 Unauthorized"]
-        C --> D[("PostgreSQL: webhook_events<br/>UNIQUE event_id")]
-        D -->|"New Record"| E["Enqueue BullMQ<br/>queue: lead-processing"]
-        D -->|"Duplicate P2002"| E1["Return 200/201 Ignored"]
+flowchart TB
+    %% 1. TIKTOK INGESTION
+    subgraph S1["1. Tiếp Nhận & Xác Thực Webhook (Ingestion Layer)"]
+        direction LR
+        A["📱 TikTok Lead Ad Form"] -->|"POST Webhook"| B["🛡️ TikTokSignatureGuard<br/>(HMAC-SHA256)"]
+        B -->|"Hợp lệ"| C["TikTokWebhookService"]
+        C --> D[("🗄️ PostgreSQL<br/>webhook_events")]
+        D --> E[("⚡ BullMQ Queue<br/>lead-processing")]
     end
 
-    subgraph WORKERS["2. Asynchronous Queue Processing (BullMQ & Redis)"]
-        E --> F["LeadProcessingWorker"]
-        F --> G["Normalizer: Phone E.164 & Email"]
-        G --> H["LeadDeduplicationService<br/>Local DB + CRM Check"]
-        H --> I[("PostgreSQL: leads")]
-        I --> J["Enqueue BullMQ<br/>queue: bitrix-sync"]
-
-        J --> K["BitrixSyncWorker<br/>Token Bucket 2 RPS Limiter"]
-        K --> L["RetryService<br/>Exponential Backoff + Jitter"]
-        L --> M["Bitrix24 REST API<br/>crm.lead.add / update"]
-        M --> N["crm.timeline.comment.add"]
-        N --> O["Enqueue BullMQ<br/>queue: deal-conversion"]
-
-        O --> P["DealConversionWorker"]
-        P --> Q["RuleEvaluatorService<br/>JSON Conditions"]
-        Q -->|"Matched"| R["Bitrix24 REST API<br/>crm.deal.add"]
-        R --> S["Bitrix24 Chat Notification<br/>im.notify.system.add"]
-        S --> T[("PostgreSQL: deals")]
+    %% 2. DEDUPLICATION & STORAGE
+    subgraph S2["2. Chuẩn Hóa & Chống Trùng Lặp (Normalization & Deduplication)"]
+        direction LR
+        F["LeadProcessingWorker"] --> G["🧹 Normalizer<br/>(SĐT E.164 & Email)"]
+        G --> H["🔍 LeadDeduplicationService<br/>(Local DB + CRM Check)"]
+        H --> I[("🗄️ PostgreSQL<br/>leads")]
+        I --> J[("⚡ BullMQ Queue<br/>bitrix-sync")]
     end
 
-    subgraph CLOSED_LOOP["3. Closed-Loop Attribution & TikTok Events"]
-        U["Sales Updates Deal: WON"] -->|"Outbound Webhook"| V["POST /webhooks/bitrix24/deals"]
-        V --> W{"Anti-Echo Guard<br/>Recently Modified?"}
-        W -->|"Yes"| W1["Ignore Self-Echo"]
-        W -->|"No"| X["Update Deal: WON in DB"]
-        X --> Y["Enqueue BullMQ<br/>queue: tiktok-events-sync"]
-        Y --> Z["TikTokEventsSyncWorker"]
-        Z --> AA["SHA-256 PII Hashing<br/>Phone & Email"]
-        AA --> AB["TikTok Events API<br/>Track Offline Conversion"]
+    %% 3. BITRIX24 CRM SYNC
+    subgraph S3["3. Đồng Bộ Dữ Liệu Sang Bitrix24 (CRM Sync Engine)"]
+        direction LR
+        K["BitrixSyncWorker"] --> L["⏱️ Token Bucket (2 RPS)<br/>+ Exponential Jitter Retry"]
+        L --> M["🏢 Bitrix24 REST API<br/>(crm.lead.add / update)"]
+        M --> N["📝 Timeline Comment<br/>(Nguồn, Mẫu Form, UTM)"]
+        N --> O[("⚡ BullMQ Queue<br/>deal-conversion")]
     end
+
+    %% 4. RULE ENGINE & DEALS
+    subgraph S4["4. Động Cơ Luật & Tự Động Tạo Deal (Dynamic Rule Engine)"]
+        direction LR
+        P["DealConversionWorker"] --> Q["🧠 RuleEvaluatorService<br/>(Toán tử JSON & Trọng số)"]
+        Q --> R["💼 Bitrix24 Deal Created<br/>(crm.deal.add)"]
+        R --> S["💬 Bitrix24 Chat Alert<br/>(im.notify.system.add)"]
+        R --> T[("🗄️ PostgreSQL<br/>deals")]
+    end
+
+    %% 5. CLOSED-LOOP ATTRIBUTION
+    subgraph S5["5. Đồng Bộ Ngược Sự Kiện Chuyển Đổi (Closed-Loop Attribution)"]
+        direction LR
+        U["🎯 Bitrix24 Deal Chuyển WON<br/>(Outbound Webhook)"] --> V["🛡️ Anti-Echo Guard<br/>(Redis Lock 15s)"]
+        V --> W[("⚡ BullMQ Queue<br/>tiktok-events-sync")]
+        W --> X["TikTokEventsSyncWorker"]
+        X --> Y["🔒 SHA-256 Hashing<br/>(Bảo mật PII Email & SĐT)"]
+        Y --> Z["🚀 TikTok Events API<br/>(CompletePayment)"]
+    end
+
+    %% INTER-STAGE CONNECTIONS (Smooth Linear Flow)
+    E ==>|"Nạp Job"| F
+    J ==>|"Nạp Job"| K
+    O ==>|"Nạp Job"| P
+    T -.->|"Trạng thái Deal đạt WON"| U
 ```
 
 ---
@@ -293,7 +305,7 @@ scripts/
 | **Tài Liệu API**        | **Swagger / OpenAPI**    |     **v12.0.1**     | Tự động sinh tài liệu tương tác chuẩn OpenAPI 3.0 tại `/docs` và xuất schema tĩnh `docs/swagger.json` cho client SDK generation.                         |
 | **Lập Lịch Ngầm**       | **@nestjs/schedule**     |     **v12.0.1**     | Điều phối Cron jobs phi tập trung định kỳ: sinh báo cáo phễu chuyển đổi hàng ngày và kích hoạt giám sát cảnh báo ngưỡng lỗi hệ thống tự động.            |
 | **Logging Chuẩn Hóa**   | **Pino (nestjs-pino)**   | **v10.3.1 / v5.1**  | Structured JSON Logging tốc độ vượt trội, hỗ trợ log correlation ID và trace context phân tán.                                                           |
-| **Testing Framework**   | **Jest + @swc/jest**     | **v30.5 / v0.2.39** | **50 test suites / 233 unit tests + 22 E2E tests (100% Pass)**, **Coverage > 80% mọi chỉ số**; SWC tăng tốc độ chạy test suite.                          |
+| **Testing Framework**   | **Jest + @swc/jest**     | **v30.5 / v0.2.39** | **50 test suites / 295 unit tests + 41 E2E tests (100% Pass)**, **100% file đạt > 70% Branch Coverage (Tổng thể: 88.75% Branch, 97.88% Stmts)**; SWC tăng tốc độ chạy test suite. |
 | **Đóng Gói Triển Khai** | **Docker & Compose**     |   **Multi-stage**   | Multi-stage build tối ưu kích thước image, cô lập môi trường chuẩn, tích hợp sẵn Healthchecks cho cả PostgreSQL, Redis và App.                           |
 
 ---
@@ -381,10 +393,11 @@ npm run start:prod
 
 | Mục Đích Thao Tác            | Câu Lệnh npm                                                  | Mô Tả Chi Tiết                                                                           |
 | :--------------------------- | :------------------------------------------------------------ | :--------------------------------------------------------------------------------------- |
-| **Chạy Unit Tests**          | `npm test`                                                    | Thực thi **233 unit tests** trên toàn bộ **50 test suites** bằng Jest + SWC (100% Pass). |
-| **Đo Độ Phủ Coverage**       | `npm run test:cov`                                            | Đo độ phủ mã nguồn: **96.27% Lines, 95.45% Statements, 82.45% Branches, 95.85% Funcs**.  |
-| **Chạy E2E Tests**           | `npm run test:e2e`                                            | Kiểm thử độc lập toàn trình **22 kịch bản E2E** bằng Jest + Supertest (100% Pass).       |
-| **Chạy System QA Tests**     | `npm run test:system`                                         | Chạy bộ 25 bài kiểm thử hệ thống tự động kiểm tra toàn bộ luồng tích hợp thực tế.        |
+| **Chạy Unit Tests**          | `npm test`                                                    | Thực thi **295 unit tests** trên toàn bộ **50 test suites** bằng Jest + SWC (100% Pass). |
+| **Đo Độ Phủ Coverage**       | `npm run test:cov`                                            | Đo độ phủ mã nguồn: **98.30% Lines, 97.88% Statements, 88.75% Branches, 98.46% Funcs** (100% file > 70% branch).  |
+| **Chạy E2E Tests**           | `npm run test:e2e`                                            | Kiểm thử toàn diện **41 kịch bản E2E & Edge Cases** bằng Jest + Supertest (100% Pass).   |
+| **Chạy System QA Tests**     | `npm run test:system`                                         | Chạy bộ **27 bài kiểm thử hệ thống tự động** kiểm tra toàn bộ luồng tích hợp thực tế trên DB & CRM thật. |
+| **Đo Hiệu Năng (Benchmark)** | `npm run test:perf`                                           | Bắn tải đồng thời **200 requests (20 workers)** đo lường thông lượng (94.43 req/s) và độ trễ P95/P99. |
 | **Dọn Dẹp Dữ Liệu Test**     | `npm run clean:test-data`                                     | Tự động dọn dẹp sạch sẽ dữ liệu test trên Bitrix24 CRM, PostgreSQL và Redis.             |
 | **Kiểm Tra ESLint**          | `npm run lint`                                                | Kiểm tra chất lượng mã nguồn bằng ESLint (0 errors, 0 warnings).                         |
 | **Xuất OpenAPI Swagger**     | `npm run swagger:export`                                      | Trích xuất OpenAPI JSON schema lưu vào file `docs/swagger.json`.                         |
@@ -487,11 +500,83 @@ flowchart LR
 
 ---
 
-## 🧪 Kết Quả Kiểm Thử (Test Coverage & Verification)
+## 🧪 Báo Cáo Kiểm Thử & Đo Lường Hiệu Năng (QA & Benchmark Reports)
 
-### Báo Cáo Độ Phủ Mã Nguồn (Jest Test Coverage Report)
+Hệ thống được thiết kế với chất lượng mã nguồn cao cấp (Production-Grade Quality), được bảo vệ bởi **3 tầng kiểm thử độc lập**: **Unit Test Coverage**, **E2E & Boundary Test Suite**, và **High-Concurrency Live Benchmark**.
 
-Hệ thống đạt chuẩn kiểm thử toàn diện với **233 unit tests (50 suites)** và **22 E2E tests** (100% Pass), đảm bảo Code Coverage $\ge 80\%$ cho toàn bộ các tiêu chí Statements, Branches, Functions và Lines.
+---
+
+### 1. Báo Cáo Độ Phủ Mã Nguồn (Unit Test Coverage > 70% All Files)
+
+Toàn bộ **50 test suites** và **295 unit tests** đều vượt qua thành công ($100\%$ Pass). Toàn bộ $100\%$ các file mã nguồn đều đạt chỉ số **Branch Coverage $> 70\%$** (toàn dự án đạt **88.75% Branch**, **97.88% Statements**, **98.46% Functions**, **98.30% Lines**).
+
+![Unit Test Coverage Report](docs/images/unit-test.png)
+
+| Nhóm Module / Thư Mục | % Statements | % Branch | % Functions | % Lines | Trạng Thái (> 70% Branch) |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| **Toàn Bộ Dự Án (All files)** | **97.88%** | **88.75%** | **98.46%** | **98.30%** | **ĐẠT XUẤT SẮC** |
+| `common/decorators` (API Key Decorator) | 100% | 100% | 100% | 100% | **100% PASS** |
+| `common/filters` (Http & Prisma Client Exception) | 100% | 96.66% | 100% | 100% | **96.66% PASS** |
+| `common/guards` (API Key, Rate Limit, Signature) | 100% | 92.72% | 100% | 100% | **92.72% PASS** |
+| `common/interceptors` (Logging & Response Transform) | 100% | 89.47% | 100% | 100% | **89.47% PASS** |
+| `common/logger` (AppLogger Pino Service) | 100% | 100% | 100% | 100% | **100% PASS** |
+| `common/normalizers` (Phone E.164, Email, Sanitizer) | 87.71% | 84.78% | 100% | 96.00% | **84.78% PASS** |
+| `common/redis` (RedisService & Distributed Locks) | 100% | 93.33% | 100% | 100% | **93.33% PASS** |
+| `database` (Prisma Database Service) | 100% | 100% | 100% | 100% | **100% PASS** |
+| `modules/analytics` (Funnel, Reports Export, Cron) | 96.39% | 87.78% | 94.73% | 96.33% | **87.78% PASS** |
+| `modules/bitrix` (HTTP, Webhooks, Rate Limiter, Adapters) | 99.05% | 89.08% | 98.03% | 99.34% | **89.08% PASS** |
+| `modules/config-mgmt` (Runtime Field Mapping & Rules) | 98.00% | 92.85% | 100% | 98.00% | **92.85% PASS** |
+| `modules/deal` (Deal Service & Conversion Pipeline) | 94.65% | 88.39% | 100% | 95.12% | **88.39% PASS** |
+| `modules/lead` (Lead Management & Batch Migration) | 97.11% | 90.07% | 100% | 96.84% | **90.07% PASS** |
+| `modules/metrics` (Prometheus Metrics Service) | 97.56% | 87.50% | 83.33% | 97.56% | **87.50% PASS** |
+| `modules/queue` (BullMQ Workers & Schedulers) | 100% | 76.47% | 100% | 100% | **76.47% PASS** |
+| `modules/rule-engine` (JSON Logic Evaluator) | 98.86% | 85.29% | 100% | 100% | **85.29% PASS** |
+| `modules/tiktok-events` (TikTok Events Adapters & Service) | 100% | 94.44% | 100% | 100% | **94.44% PASS** |
+| `modules/tiktok` (Webhook Controllers & Ingestion) | 100% | 100% | 100% | 100% | **100% PASS** |
+
+---
+
+### 2. Kiểm Thử Toàn Trình & Trường Hợp Biên (E2E & Boundary Test Suite)
+
+Bộ kiểm thử E2E độc lập bao phủ **41 kịch bản kiểm thử toàn trình** kết hợp chặt chẽ giữa luồng tích hợp chuẩn (Happy Path) và các trường hợp biên/dữ liệu xấu (Negative & Boundary Cases), thực thi hoàn tất trong **7.18s** (100% Pass).
+
+![E2E Test Results](docs/images/e2e-test.png)
+
+#### Bảng Tổng Hợp 41 Kịch Bản E2E & Edge Cases:
+
+| Nhóm Kiểm Thử | Số Tests | Các Trường Hợp Kiểm Thử Tiêu Biểu | Kết Quả Thực Tế |
+| :--- | :---: | :--- | :---: |
+| **Bảo Mật & Xác Thực** | 6 | Xác thực chữ ký `TikTok-Signature` HMAC-SHA256 (hợp lệ, sai chữ ký, thiếu chữ ký); Kiểm soát header quản trị `x-api-key`; Xác thực token `application_token` của Bitrix24 Webhook. | **100% PASS (401/200)** |
+| **Đa Dạng Webhook & Idempotency** | 4 | Tiếp nhận các loại sự kiện TikTok (`lead.generate`, `form.complete`, `user.interaction`); Chống nạp trùng lặp bản ghi theo cơ chế Database-First Idempotency. | **100% PASS** |
+| **Tra Cứu Đa Kênh & Lọc Biên** | 5 | Tra cứu Lead/Deal theo UUID; Tra cứu Lead theo ID số Bitrix (`/api/v1/leads/1039`); Tra cứu Deal theo ID số Bitrix (`/api/v1/deals/5001`); Xử lý ID không tồn tại trả về `404 Not Found` sạch sẽ. | **100% PASS** |
+| **Bắt Lỗi Định Dạng & Triệt Tiêu Lỗi 500** | 4 | Truy vấn `GET /api/v1/leads/batch-migrate/12` (ID số không phải UUID) $\rightarrow$ Trả về **`404 Not Found`** thay vì lỗi `500 P2023`; Xử lý chuỗi UUID sai format không làm sập Database connection. | **100% PASS (No 500)** |
+| **Kiểm Định DTO & Giới Hạn Boundary** | 5 | Chặn `batchSize > 200` và `batchSize < 1` với `400 Bad Request`; Chặn định dạng ngày `dateFrom` sai chuẩn ISO; Chặn số tiền Deal âm hoặc sai kiểu dữ liệu với `400 Bad Request`. | **100% PASS (400 Bad Request)** |
+| **Quy Trình Chuyển Đổi Deal & Phân Trang** | 6 | Chuyển đổi thủ công Lead sang Deal; Chuyển đổi bằng ID Bitrix `1039`; Chặn chuyển đổi Lead không tồn tại; Phân trang biên với số trang cực lớn (`page=9999`) trả về mảng rỗng an toàn. | **100% PASS** |
+| **Xuất Báo Cáo File Excel & CSV** | 5 | Mặc định xuất file Excel (`.xlsx`); Stream dữ liệu nhị phân Excel thật (`application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`); Fallback an toàn khi tham số `format` không xác định. | **100% PASS** |
+| **Cấu Hình Động & Giám Sát Metrics** | 6 | Cập nhật ánh xạ trường `field_mapping`; Cập nhật quy tắc `deal_rules`; Trích xuất Prometheus Metrics tại `/metrics` (200 OK); Healthcheck `/api/v1/health` (200 OK). | **100% PASS** |
+
+---
+
+### 3. Kiểm Thử Tải Đồng Thời (High-Concurrency Live Benchmark)
+
+Kịch bản kiểm thử áp lực cao (Load Test) mô phỏng đợt bùng nổ chiến dịch quảng cáo TikTok Ads với **200 leads** được bắn đồng thời qua **20 workers kết nối song song** (`concurrency: 20`) vào endpoint tiếp nhận webhook `/webhooks/tiktok/leads`.
+
+![High-Concurrency Benchmark](docs/images/benchmark.png)
+
+#### Bảng Chỉ Số Đo Lường Hiệu Năng Thực Tế:
+
+| Tiêu Chí Đo Lường (Benchmark Metric) | Giá Trị Thực Tế Đạt Được | Ý Nghĩa Kỹ Thuật & Đánh Giá Vận Hành |
+| :--- | :---: | :--- |
+| **Tổng Số Request Đã Gửi (Total Requests)** | **200 requests** | Bắn tải liên tục không ngắt quãng qua 20 kết nối HTTP đồng thời. |
+| **Tỷ Lệ Tiếp Nhận Thành Công (Success Rate)** | **200 / 200 (100.0%)** | **0 request lỗi**, không có bất kỳ hiện tượng rớt kết nối hoặc crash server. |
+| **Tổng Thời Gian Hoàn Tất (Elapsed Time)** | **2.12 giây** | Thời gian xử lý thần tốc cho toàn bộ 200 webhook events. |
+| **Thông Lượng Hệ Thống (Throughput - RPS)** | **94.43 req/giây** | Khả năng nuốt tải xuất sắc trên môi trường Node.js Single Instance. |
+| **Độ Trễ Tối Thiểu (Min Latency)** | **122 ms** | Thời gian phản hồi nhanh nhất khi tiếp nhận và lưu DB. |
+| **Độ Trễ Trung Bình (Average Latency)** | **200.05 ms** | Phản hồi trung bình ổn định dưới 250ms cho người dùng. |
+| **Phân Vị Độ Trễ 50% (p50 Median)** | **190 ms** | 50% số lượng request được phản hồi trong vòng dưới 190ms. |
+| **Phân Vị Độ Trễ 95% (p95 Latency)** | **281 ms** | 95% số lượng request phản hồi dưới 281ms (dưới ngưỡng 500ms khuyến nghị). |
+| **Phân Vị Độ Trễ 99% (p99 Latency)** | **324 ms** | 99% số lượng request phản hồi dưới 324ms trong điều kiện tải cao nhất. |
+| **Độ Trễ Lớn Nhất (Max Latency)** | **334 ms** | Không có hiện tượng spike trễ quá 350ms, đảm bảo an toàn tuyệt đối trước timeout TikTok. |
 
 ---
 

@@ -279,5 +279,21 @@ describe('ReportExportService', () => {
       expect(csv).toContain('Le Van C');
       expect(csv).toContain('Audit');
     });
+
+    it('should query leads ordered by createdAt desc and id desc for newest first export', async () => {
+      mockPrisma.lead.findMany.mockResolvedValueOnce([]);
+      const mockRes = {
+        setHeader: jest.fn(),
+        write: jest.fn(),
+        end: jest.fn(),
+      };
+
+      await service.streamExcelExport(mockRes, 'all');
+      expect(mockPrisma.lead.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        }),
+      );
+    });
   });
 });

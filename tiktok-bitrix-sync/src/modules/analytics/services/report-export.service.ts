@@ -36,7 +36,7 @@ export class ReportExportService {
         take: CHUNK_SIZE,
         skip: cursor ? 1 : 0,
         cursor: cursor ? { id: cursor } : undefined,
-        orderBy: { id: 'asc' },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         include: {
           deals: { select: { id: true, bitrix24Id: true, title: true, stage: true, amount: true, status: true } },
         },
@@ -114,7 +114,7 @@ export class ReportExportService {
         take: CHUNK_SIZE,
         skip: cursor ? 1 : 0,
         cursor: cursor ? { id: cursor } : undefined,
-        orderBy: { id: 'asc' },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         include: {
           deals: { select: { id: true, bitrix24Id: true, title: true, stage: true, amount: true, status: true } },
         },
@@ -215,7 +215,7 @@ export class ReportExportService {
         take: CHUNK_SIZE,
         skip: cursor ? 1 : 0,
         cursor: cursor ? { id: cursor } : undefined,
-        orderBy: { id: 'asc' },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         include: {
           deals: { select: { id: true, bitrix24Id: true, title: true, stage: true, amount: true, status: true } },
         },
