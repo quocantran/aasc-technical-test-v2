@@ -113,6 +113,44 @@ describe('Application Endpoints (e2e)', () => {
     expect(response.body.data).toHaveProperty('url');
     expect(response.body.data.url).toContain('accounts.google.com');
   });
+
+  it('/api/mapping (POST) should reject invalid mapping body with 400 Bad Request', async () => {
+    // Missing fields array
+    const responseEmpty = await request(app.getHttpServer())
+      .post('/api/mapping')
+      .send({ fields: [] })
+      .expect(400);
+
+    expect(responseEmpty.body).toHaveProperty('message');
+
+    // Invalid field type in mapping
+    const responseBadField = await request(app.getHttpServer())
+      .post('/api/mapping')
+      .send({
+        fields: [{ sheetColumn: 'Họ tên', bitrixField: 'NAME', type: 'unsupported_type' }],
+      })
+      .expect(400);
+
+    expect(responseBadField.body).toHaveProperty('message');
+  });
+
+  it('/api/webhook/bitrix (POST) should reject invalid webhook body missing event with 400 Bad Request', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/api/webhook/bitrix')
+      .send({ data: { ID: 123 } })
+      .expect(400);
+
+    expect(response.body).toHaveProperty('message');
+  });
+
+  it('/api/sync/trigger (POST) should reject invalid force type with 400 Bad Request', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/api/sync/trigger')
+      .send({ force: 'not_a_boolean_or_truthy_flag' })
+      .expect(400);
+
+    expect(response.body).toHaveProperty('message');
+  });
 });
 
 

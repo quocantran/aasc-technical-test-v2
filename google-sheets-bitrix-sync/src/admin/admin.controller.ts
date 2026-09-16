@@ -6,6 +6,13 @@ import { MappingService } from '../mapping/services/mapping.service.js';
 import { LockService } from '../sync/services/lock.service.js';
 import { BitrixLeadService } from '../bitrix/services/bitrix-lead.service.js';
 import type { MappingConfiguration } from '../mapping/interfaces/mapping-config.interface.js';
+import { UpdateMappingDto } from '../mapping/dto/update-mapping.dto.js';
+import { GetSyncLogsQueryDto } from './dto/get-sync-logs.dto.js';
+import { TwoWaySyncDto } from './dto/two-way-sync.dto.js';
+
+export { UpdateMappingDto } from '../mapping/dto/update-mapping.dto.js';
+export { GetSyncLogsQueryDto } from './dto/get-sync-logs.dto.js';
+export { TwoWaySyncDto } from './dto/two-way-sync.dto.js';
 
 // Web management admin interface and configuration REST APIs
 @Controller()
@@ -46,7 +53,7 @@ export class AdminController {
   // Updates mapping rules configuration and saves to disk
   @Post('api/mapping')
   @HttpCode(HttpStatus.OK)
-  updateMapping(@Body() body: Record<string, any>) {
+  updateMapping(@Body() body: UpdateMappingDto) {
     try {
       this.mappingService.saveMappingConfig(body as MappingConfiguration);
       return {
@@ -61,8 +68,9 @@ export class AdminController {
 
   // Returns execution logs and historical sync statistics (defaults to most recent 20 runs)
   @Get('api/sync/logs')
-  getLogs(@Query('limit') limit?: string) {
-    const take = limit ? Math.min(Math.max(parseInt(limit, 10) || 20, 1), 100) : 20;
+  getLogs(@Query() query?: GetSyncLogsQueryDto | string) {
+    const rawLimit = typeof query === 'string' ? query : (query?.limit !== undefined ? String(query.limit) : undefined);
+    const take = rawLimit !== undefined ? Math.min(Math.max(parseInt(rawLimit, 10) || 20, 1), 100) : 20;
     return {
       status: 'success',
       data: this.syncOrchestrator.getRecentLogs(take),
@@ -72,7 +80,7 @@ export class AdminController {
   // Triggers manual reverse synchronization (Bitrix24 -> Google Sheets)
   @Post('api/sync/two-way')
   @HttpCode(HttpStatus.OK)
-  async triggerTwoWaySync() {
+  async triggerTwoWaySync(@Body() _body?: TwoWaySyncDto) {
     let attempts = 0;
     while (this.lockService.isLocked() && attempts < 6) {
       await new Promise((r) => setTimeout(r, 500));

@@ -1,5 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
+import { ValidationPipe } from '@nestjs/common';
 import { join } from 'path';
 import { AppModule } from './app.module.js';
 import { AppLogger } from './common/logger/app-logger.service.js';
@@ -10,6 +11,14 @@ async function bootstrap() {
     const app = await NestFactory.create<NestExpressApplication>(AppModule, { bufferLogs: true });
     const logger = app.get(AppLogger);
     app.useLogger(logger);
+
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,
+        transform: true,
+        forbidNonWhitelisted: false,
+      }),
+    );
 
     app.useStaticAssets(join(process.cwd(), 'public'), { index: false });
 

@@ -468,30 +468,25 @@ async function main() {
     const reCreatedPhone = `0977${String(Date.now()).slice(-6)}`;
 
     // Đảm bảo Row 12 có đầy đủ thông tin nghiệp vụ với các cột hệ thống được xóa trắng (chủ đích tạo lại lead)
-    const businessCols = [
-      'Phan Văn Test QA',
-      'QA Solutions Vietnam',
-      reCreatedEmail,
-      reCreatedPhone,
-      'Website',
-      '75000000',
-      'Mới',
-      '1',
-      'Tạo lại lead sau khi xóa ID',
-      '0109988776',
-      'Công nghệ thông tin',
-    ];
+    const row12Recreated = new Array(headers.length).fill('');
+    if (col.name >= 0) row12Recreated[col.name] = 'Phan Văn Test QA';
+    if (col.company >= 0) row12Recreated[col.company] = 'QA Solutions Vietnam';
+    if (col.email >= 0) row12Recreated[col.email] = reCreatedEmail;
+    if (col.phone >= 0) row12Recreated[col.phone] = reCreatedPhone;
+    if (col.source >= 0) row12Recreated[col.source] = 'Website';
+    if (col.opportunity >= 0) row12Recreated[col.opportunity] = '75000000';
+    if (col.status >= 0) row12Recreated[col.status] = 'Mới';
+    if (col.assigned >= 0) row12Recreated[col.assigned] = '1';
+    if (col.comments >= 0) row12Recreated[col.comments] = 'Tạo lại lead sau khi xóa ID';
+    if (col.tax >= 0) row12Recreated[col.tax] = '0109988776';
+    if (col.industry >= 0) row12Recreated[col.industry] = 'Công nghệ thông tin';
 
+    const endLetter = indexToA1(headers.length - 1);
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID,
-      range: 'Leads!A12:K12',
+      range: `Leads!A12:${endLetter}12`,
       valueInputOption: 'USER_ENTERED',
-      requestBody: { values: [businessCols] },
-    });
-
-    await sheets.spreadsheets.values.clear({
-      spreadsheetId: SPREADSHEET_ID,
-      range: 'Leads!L12:Q12',
+      requestBody: { values: [row12Recreated] },
     });
 
     console.log('2. Kích hoạt đồng bộ...');

@@ -2,6 +2,9 @@ import { Controller, Get, Query, Res } from '@nestjs/common';
 import type { Response } from 'express';
 import { ConfigService } from '@nestjs/config';
 import { GoogleOAuthStrategy } from '../google-sheets/strategies/oauth.strategy.js';
+import { GoogleCallbackQueryDto } from './dto/google-callback.dto.js';
+
+export { GoogleCallbackQueryDto } from './dto/google-callback.dto.js';
 
 // REST controller exposing Google OAuth 2.0 authorization URLs, connection status, and redirect callbacks
 @Controller('api/auth')
@@ -43,9 +46,10 @@ export class AuthController {
   // Handles Google OAuth callback: saves token to SQLite and redirects back to /admin with toast state
   @Get('google/callback')
   async handleGoogleCallback(
-    @Query('code') code: string,
+    @Query() query: GoogleCallbackQueryDto,
     @Res() res: Response,
   ) {
+    const code = typeof query === 'string' ? query : query?.code;
     if (!code) {
       return res.redirect('/admin?auth=error&msg=' + encodeURIComponent('Mã ủy quyền không hợp lệ'));
     }

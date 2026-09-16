@@ -395,6 +395,68 @@ describe('MappingService', () => {
     const cols = mappingService.getConfiguredSheetColumns();
     expect(cols).toEqual(['Tên khách hàng', 'Email', 'Số điện thoại']);
   });
+
+  it('should cover all branches of transformBitrixToRow for string multifield, number defaults and floats', () => {
+    mappingService.loadMappingConfig({
+      fields: [
+        { sheetColumn: 'Email', bitrixField: 'EMAIL', type: 'multifield' },
+        { sheetColumn: 'Doanh số', bitrixField: 'OPPORTUNITY', type: 'number', defaultValue: '100' },
+        { sheetColumn: 'Hoa hồng', bitrixField: 'COMMISSION', type: 'number', defaultValue: '50' },
+        { sheetColumn: 'Tiêu đề', bitrixField: 'TITLE', type: 'string' },
+      ],
+    });
+
+    const bitrixLead = {
+      EMAIL: 'plain.string@example.com',
+      OPPORTUNITY: 'not_a_number',
+      COMMISSION: undefined,
+      TITLE: 'Direct Plain Title',
+    };
+
+    const row = mappingService.transformBitrixToRow(bitrixLead);
+    expect(row['Email']).toBe('plain.string@example.com');
+    expect(row['Doanh số']).toBe('not_a_number');
+    expect(row['Hoa hồng']).toBe('50');
+    expect(row['Tiêu đề']).toBe('Direct Plain Title');
+  });
+
+  it('should cover uppercase direct enum CRM code and date YYYY-MM-DD in transformRow', () => {
+    mappingService.loadMappingConfig({
+      fields: [
+        { sheetColumn: 'Tiêu đề', bitrixField: 'TITLE', type: 'string', required: true },
+        { sheetColumn: 'Email', bitrixField: 'EMAIL', type: 'multifield' },
+        { sheetColumn: 'Nguồn', bitrixField: 'SOURCE_ID', type: 'enum', valueMapping: { Website: 'WEB', Facebook: 'FACEBOOK' } },
+        { sheetColumn: 'Ngày sinh', bitrixField: 'BIRTHDATE', type: 'date' },
+        { sheetColumn: 'Người phụ trách', bitrixField: 'ASSIGNED_BY_ID', type: 'number' },
+      ],
+    });
+
+    // Valid direct CRM uppercase code and valid YYYY-MM-DD date
+    const validRow = {
+      'Tiêu đề': 'Lead Test Enum',
+      'Email': 'valid@test.com',
+      'Nguồn': 'WEB',
+      'Ngày sinh': '2026-05-20',
+      'Người phụ trách': '5',
+    };
+    const validRes = mappingService.transformRow(validRow);
+    expect(validRes.success).toBe(true);
+    expect(validRes.bitrixFields['SOURCE_ID']).toBe('WEB');
+    expect(validRes.bitrixFields['BIRTHDATE']).toBe('2026-05-20');
+    expect(validRes.bitrixFields['ASSIGNED_BY_ID']).toBe(5);
+
+    // Invalid YYYY-MM-DD date and invalid ASSIGNED_BY_ID
+    const invalidRow = {
+      'Tiêu đề': 'Lead Invalid Date',
+      'Email': 'valid@test.com',
+      'Ngày sinh': '2026-15-40',
+      'Người phụ trách': '12.5',
+    };
+    const invalidRes = mappingService.transformRow(invalidRow);
+    expect(invalidRes.success).toBe(false);
+    expect(invalidRes.errors.some((e) => e.includes('ngày hợp lệ'))).toBe(true);
+    expect(invalidRes.errors.some((e) => e.includes('số nguyên dương'))).toBe(true);
+  });
 });
 
 

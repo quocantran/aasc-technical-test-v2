@@ -1,4 +1,3 @@
-import { REGEX_PATTERNS } from '../../common/constants/regex.constants.js';
 import { ERROR_MESSAGES_VI } from '../../common/constants/error-messages.constants.js';
 
 // Result returned after phone number validation and normalization

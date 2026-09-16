@@ -1,4 +1,5 @@
-import { Module } from '@nestjs/common';
+import { Module, ValidationPipe } from '@nestjs/common';
+import { APP_PIPE } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import configuration from './config/configuration.js';
@@ -23,6 +24,16 @@ import { AdminModule } from './admin/admin.module.js';
     HealthModule,
     SyncModule,
     AdminModule,
+  ],
+  providers: [
+    {
+      provide: APP_PIPE,
+      useValue: new ValidationPipe({
+        whitelist: true,
+        transform: true,
+        forbidNonWhitelisted: false,
+      }),
+    },
   ],
 })
 export class AppModule {}

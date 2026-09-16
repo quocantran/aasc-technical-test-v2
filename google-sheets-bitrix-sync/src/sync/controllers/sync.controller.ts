@@ -2,11 +2,12 @@ import { Controller, Post, Get, Body, Query, HttpCode, HttpStatus, Optional, Htt
 import { SyncOrchestratorService } from '../services/sync-orchestrator.service.js';
 import { LockService } from '../services/lock.service.js';
 import { GoogleSheetsService } from '../../google-sheets/google-sheets.service.js';
+import { TriggerSyncDto, TriggerSyncQueryDto } from '../dto/trigger-sync.dto.js';
+import { ReverseSyncDto, ReverseSyncQueryDto } from '../dto/reverse-sync.dto.js';
 
-// DTO for manually triggering synchronization
-export interface TriggerSyncDto {
-  force?: boolean;
-}
+// Re-export TriggerSyncDto for backward compatibility
+export { TriggerSyncDto, TriggerSyncQueryDto } from '../dto/trigger-sync.dto.js';
+export { ReverseSyncDto, ReverseSyncQueryDto } from '../dto/reverse-sync.dto.js';
 
 // REST controller exposing manual sync triggers and execution status inspection
 @Controller('api/sync')
@@ -22,9 +23,9 @@ export class SyncController {
   @HttpCode(HttpStatus.OK)
   async triggerSync(
     @Body() body?: TriggerSyncDto,
-    @Query('force') forceQuery?: string,
+    @Query() query?: TriggerSyncQueryDto,
   ) {
-    const isForce = body?.force === true || forceQuery === 'true';
+    const isForce = body?.force === true || query?.force === true;
 
     // Waits briefly (up to 3s) if a short background sync or webhook is currently running
     let attempts = 0;
@@ -68,7 +69,10 @@ export class SyncController {
   // Triggers reverse sync from Bitrix24 to Google Sheets on-demand
   @Post('reverse')
   @HttpCode(HttpStatus.OK)
-  async triggerReverseSync(@Query('leadId') leadId?: string) {
+  async triggerReverseSync(
+    @Body() body?: ReverseSyncDto,
+    @Query() query?: ReverseSyncQueryDto,
+  ) {
     let attempts = 0;
     while (this.lockService.isLocked() && attempts < 6) {
       await new Promise((r) => setTimeout(r, 500));
@@ -94,8 +98,16 @@ export class SyncController {
       };
     }
 
-    const id = leadId ? Number(leadId) : undefined;
-    const result = await this.syncOrchestrator.syncBitrixToSheets(id);
+    let targetLeadId: number | undefined;
+    if (typeof body === 'string' || typeof body === 'number') {
+      targetLeadId = Number(body);
+    } else if (body && typeof body.leadId === 'number') {
+      targetLeadId = body.leadId;
+    } else if (query?.leadId !== undefined) {
+      targetLeadId = Number(query.leadId);
+    }
+
+    const result = await this.syncOrchestrator.syncBitrixToSheets(targetLeadId);
     return {
       status: 'success',
       message: 'Đồng bộ Bitrix24 -> Google Sheets hoàn tất',

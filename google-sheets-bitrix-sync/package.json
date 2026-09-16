@@ -34,6 +34,8 @@
     "@nestjs/schedule": "^12.0.1",
     "@nestjs/typeorm": "^12.0.1",
     "axios": "^1.20.0",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.15.1",
     "googleapis": "^178.0.0",
     "joi": "^18.2.8",
     "nest-commander": "^3.21.0",

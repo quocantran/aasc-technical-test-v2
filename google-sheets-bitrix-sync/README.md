@@ -35,6 +35,14 @@
    - Phát hiện Lead đã bị xóa trên CRM (Zombie Record), thông báo rõ trên Sheet kèm hướng dẫn xóa Lead ID để tạo mới lại.
 10. **Web Admin Dashboard (`/admin`):**
     - Giao diện Glassmorphism dark-mode thân thiện cho người dùng Non-Tech: theo dõi số liệu trực quan, kích hoạt sync 1 chạm (thuận & ngược), quản lý cấu hình ánh xạ cột linh hoạt từ danh mục trường Bitrix24 thực tế.
+11. **Kiểm Soát & Xác Thực Dữ Liệu Đầu Vào Toàn Diện (HTTP Request DTO Validation):**
+    - Kích hoạt `ValidationPipe` toàn cục với cơ chế `whitelist: true` (tự động loại bỏ trường rác/ngoài khai báo) và `transform: true` (tự động ép kiểu dữ liệu an toàn).
+    - Chuẩn hóa DTO chặt chẽ (`class-validator` & `class-transformer`) cho 100% các HTTP request (Body & Query Params):
+      - **Đồng bộ:** `TriggerSyncDto`, `TriggerSyncQueryDto`, `ReverseSyncDto`, `TwoWaySyncDto` (kiểm soát cờ `force`, `source`, `leadId`).
+      - **Webhook Realtime:** `BitrixWebhookDto`, `BitrixWebhookAuthDto` (xác thực `event`, `data[FIELDS][ID]`, `auth`).
+      - **Cấu hình Ánh xạ:** `UpdateMappingDto`, `FieldMappingDto` (xác thực danh sách cặp trường `sheetColumn` $\leftrightarrow$ `bitrixField`).
+      - **Admin & OAuth:** `GetSyncLogsQueryDto` (giới hạn `limit`, `page`), `GoogleCallbackQueryDto` (bảo đảm mã ủy quyền `code`).
+    - Ngăn chặn 100% rủi ro Injection, payload sai định dạng hoặc trường dữ liệu độc hại trước khi tiến vào tầng nghiệp vụ.
 
 ---
 
@@ -45,6 +53,7 @@ Hệ thống được tổ chức phân lớp rõ ràng theo nguyên tắc **Cle
 ```
 src/
 ├── admin/                                  # [Presentation / MVC] Admin Dashboard Controller, Auth Controller & Views
+│   └── dto/                                # [DTO] GetSyncLogsQueryDto, TwoWaySyncDto, GoogleCallbackQueryDto
 ├── bitrix/
 │   ├── interfaces/                         # [Domain Contracts] Interface trừu tượng hóa xác thực Bitrix24
 │   ├── services/
@@ -64,11 +73,13 @@ src/
 │   └── google-sheets.service.ts            # [Infrastructure] Đọc/Ghi Batch, ẩn cột hệ thống qua Sheets API v4
 ├── health/                                 # [Infrastructure] Healthcheck Endpoint (/api/health)
 ├── mapping/
+│   ├── dto/                                # [DTO] FieldMappingDto, UpdateMappingDto
 │   ├── normalizers/                        # [Domain] Chuẩn hóa Phone E.164, Email RFC
 │   └── services/mapping.service.ts         # [Domain Service] Biến đổi hai chiều Sheet ↔ Bitrix theo mapping.json
 └── sync/
     ├── commands/                           # [CLI] Nest Commander CLI Entry (npm run sync)
     ├── controllers/                        # [Presentation] REST SyncController & WebhookController
+    ├── dto/                                # [DTO] TriggerSyncDto, ReverseSyncDto, BitrixWebhookDto
     ├── entities/                           # [Domain Entity] SyncHistoryEntity (SQLite table)
     ├── interfaces/                         # [Domain Contracts] Interface kết quả và pipeline đồng bộ
     ├── schedulers/                         # [Infrastructure] Dynamic Cron Job Scheduler
@@ -81,7 +92,7 @@ src/
         ├── lock.service.ts                 # [Infrastructure] In-memory Mutex Lock chống Race Condition
         └── sync-history.service.ts         # [Application] Lưu trữ lịch sử thực thi vào SQLite & Memory Cache
 scripts/
-├── system_test.cjs                         # Bộ kiểm thử hệ thống trực tiếp toàn diện 22 Test Cases (100% Pass)
+├── system_test.cjs                         # Bộ kiểm thử hệ thống trực tiếp toàn diện 26 Test Cases (100% Pass)
 ├── live_benchmark.cjs                      # Benchmark hiệu năng thực tế với 150 records thật (có prompt xóa/giữ data)
 └── cleanup_benchmark.cjs                   # Tiện ích dọn dẹp dữ liệu benchmark trên Google Sheet và Bitrix24
 ```
@@ -90,19 +101,19 @@ scripts/
 
 ## 🛠️ Công Nghệ Sử Dụng (Tech Stack) & Yêu Cầu Môi Trường
 
-| Thành Phần         | Công Nghệ / Thư Viện        |       Phiên Bản       | Ghi Chú                                                                                                                             |
-| :----------------- | :-------------------------- | :-------------------: | :---------------------------------------------------------------------------------------------------------------------------------- |
-| **Runtime**        | **Node.js**                 | **v20.19+ / v22.12+** | Hỗ trợ đầy đủ ESM và native asynchronous features.                                                                                  |
-| **Framework**      | **NestJS Core**             |      **v12.0.1**      | Kiến trúc Clean Architecture, Dependency Injection.                                                                                 |
-| **Language**       | **TypeScript**              |      **v6.0.3**       | Strict type-safety, Decorator metadata.                                                                                             |
-| **Database & ORM** | **SQLite3 + TypeORM**       | **v5.1.7 / v0.3.31**  | Lưu trữ token OAuth và lịch sử đồng bộ bền vững.                                                                                    |
-| **Google Client**  | **googleapis**              |     **v178.0.0**      | Google Sheets API v4 (Service Account & OAuth 2.0).                                                                                 |
-| **HTTP & Batch**   | **Axios + @nestjs/axios**   | **v1.20.0 / v12.0.0** | Giao tiếp REST API & Batch JSON 50 cmds/req.                                                                                        |
-| **Scheduling**     | **@nestjs/schedule + cron** |      **v12.0.1**      | Cron job tự động chạy ngầm theo chu kỳ cấu hình.                                                                                    |
-| **CLI Command**    | **nest-commander**          |      **v3.21.0**      | Lệnh CLI thủ công `npm run sync` (hỗ trợ cờ `-f, --force`).                                                                         |
-| **Validation**     | **Joi**                     |      **v18.2.8**      | Validate biến môi trường `.env` nghiêm ngặt khi khởi động.                                                                          |
-| **Logging**        | **Pino (nestjs-pino)**      |      **v5.1.0**       | Structured JSON log + Bảng Unicode tóm tắt tiếng Việt.                                                                              |
-| **Linter & Test**  | **oxlint + Vitest**         | **v1.82.0 / v4.1.11** | 25 test suites / 206 unit tests (100%), 0 lint error trên 79 files. Độ phủ Lines 96.09%, Stmts 95.50%, Branch 81.93%, Funcs 98.00%. |
+| Thành Phần         | Công Nghệ / Thư Viện                    |        Phiên Bản        | Ghi Chú                                                                                                                              |
+| :----------------- | :-------------------------------------- | :---------------------: | :----------------------------------------------------------------------------------------------------------------------------------- |
+| **Runtime**        | **Node.js**                             |  **v20.19+ / v22.12+**  | Hỗ trợ đầy đủ ESM và native asynchronous features.                                                                                   |
+| **Framework**      | **NestJS Core**                         |       **v12.0.1**       | Kiến trúc Clean Architecture, Dependency Injection.                                                                                  |
+| **Language**       | **TypeScript**                          |       **v6.0.3**        | Strict type-safety, Decorator metadata.                                                                                              |
+| **Database & ORM** | **SQLite3 + TypeORM**                   |  **v5.1.7 / v0.3.31**   | Lưu trữ token OAuth và lịch sử đồng bộ bền vững.                                                                                     |
+| **Google Client**  | **googleapis**                          |      **v178.0.0**       | Google Sheets API v4 (Service Account & OAuth 2.0).                                                                                  |
+| **HTTP & Batch**   | **Axios + @nestjs/axios**               |  **v1.20.0 / v12.0.0**  | Giao tiếp REST API & Batch JSON 50 cmds/req.                                                                                         |
+| **Scheduling**     | **@nestjs/schedule + cron**             |       **v12.0.1**       | Cron job tự động chạy ngầm theo chu kỳ cấu hình.                                                                                     |
+| **CLI Command**    | **nest-commander**                      |       **v3.21.0**       | Lệnh CLI thủ công `npm run sync` (hỗ trợ cờ `-f, --force`).                                                                          |
+| **Validation**     | **class-validator + class-transformer** | **v0.14.3 / v0.5.1**    | Global ValidationPipe cho 100% HTTP DTOs; kết hợp **Joi v18.2.8** xác thực biến môi trường `.env`.                                  |
+| **Logging**        | **Pino (nestjs-pino)**                  |       **v5.1.0**        | Structured JSON log + Bảng Unicode tóm tắt tiếng Việt.                                                                               |
+| **Linter & Test**  | **oxlint + Vitest**                     |  **v1.82.0 / v4.1.11**  | 27 test suites / 252 unit tests (100%), 0 lint error trên 89 files. Độ phủ Lines 97.01%, Stmts 96.39%, Branch 83.95%, Funcs 98.07%. |
 
 ---
 
@@ -419,26 +430,26 @@ Nếu bạn muốn ủy quyền trực tiếp bằng tài khoản cá nhân, hã
 Kiểm thử trực tiếp trên môi trường Live kết nối Google Sheets API và Bitrix24 CRM REST API Webhook:
 
 - **Lệnh chạy:** `npm run test:system` (hoặc `node scripts/system_test.cjs`)
-- **Tổng số Test Cases:** **22 Test Cases**
-- **Tổng số Assertions:** **103 Assertions**
-- **Tỷ lệ vượt qua:** **103/103 PASS (100% Pass Rate - 0 Failures)**
+- **Tổng số Test Cases:** **26 Test Cases**
+- **Tổng số Assertions:** **104 Assertions**
+- **Tỷ lệ vượt qua:** **104/104 PASS (100% Pass Rate - 0 Failures)**
 - **Thời gian hoàn tất:** ~60 giây trên môi trường mạng thực tế.
 
 ### 2. Kiểm Thử Đơn Vị & Tích Hợp (Unit & E2E Tests)
 
-- **Unit Test Suites:** **25/25 Test Files Passed (100%)**
-- **Unit Tests:** **206/206 Tests Passed (100%)**
-- **E2E Integration Tests:** **8/8 Tests Passed (100%)**
-- **Code Coverage:** Toàn bộ **100% các file mã nguồn** đều đạt **$\ge 70\%$** trên tất cả 4 tiêu chí (Statements, Branch, Functions, Lines).
-  - **Lines Coverage:** **96.09%**
-  - **Statements Coverage:** **95.50%**
-  - **Functions Coverage:** **98.00%**
-  - **Branch Coverage:** **81.93%**
-- **Linter & Code Quality:** `npm run lint` (**0 errors, 0 warnings** với `oxlint` trên **79 files**).
+- **Unit Test Suites:** **27/27 Test Files Passed (100%)**
+- **Unit Tests:** **252/252 Tests Passed (100%)**
+- **E2E Integration Tests:** **11/11 Tests Passed (100%)**
+- **Code Coverage:** Toàn bộ **100% các file mã nguồn** đều đạt **$\ge 75\%$** trên tất cả 4 tiêu chí (Statements, Branch, Functions, Lines).
+  - **Lines Coverage (% Lines):** **97.01%**
+  - **Statements Coverage (% Stmts):** **96.39%**
+  - **Functions Coverage (% Funcs):** **98.07%**
+  - **Branch Coverage (% Branch):** **83.95%**
+- **Linter & Code Quality:** `npm run lint` (**0 errors, 0 warnings** với `oxlint` trên **89 files**).
 
 <br/>
 
-![Báo cáo kết quả Unit Tests và Code Coverage Vitest V8](docs/images/unittests/result-test.png)
+![Báo cáo kết quả Unit Tests và Code Coverage Vitest V8](docs/images/unittests/unit-test-result.png)
 
 ```bash
 # Chạy toàn bộ Unit Tests:

@@ -3,6 +3,9 @@ import { ConfigService } from '@nestjs/config';
 import { SyncOrchestratorService } from '../services/sync-orchestrator.service.js';
 import { AppLogger } from '../../common/logger/app-logger.service.js';
 import { SYNC_CONFIG_DIRECTIONS } from '../../common/constants/sync.constants.js';
+import { BitrixWebhookDto } from '../dto/bitrix-webhook.dto.js';
+
+export { BitrixWebhookDto } from '../dto/bitrix-webhook.dto.js';
 
 // Receives and validates real-time webhook event notifications from Bitrix24
 @Controller('api/webhook/bitrix')
@@ -20,7 +23,7 @@ export class WebhookController {
   // Handles incoming Bitrix lead events, verifies token, and triggers background sync
   @Post()
   async handleBitrixWebhook(
-    @Body() payload: any,
+    @Body() payload: BitrixWebhookDto,
     @Headers('authorization') authHeader?: string,
   ) {
     this.logger.log(`Received Bitrix24 webhook event: ${payload?.event || 'Unknown'}`, 'WebhookController');
